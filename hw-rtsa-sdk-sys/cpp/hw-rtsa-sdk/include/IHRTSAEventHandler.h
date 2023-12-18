@@ -79,7 +79,7 @@ public:
      * 2,NETWORK_STATE_RECONNECTING = 3
      */
 
-    /**
+    /* *
      * token过期回调通知
      */
     virtual void onAuthorizationExpired() { }
@@ -268,7 +268,7 @@ public:
     virtual int onAudioEncode(huawei::rtsa::HRTSAAudioEncStru* pstEncPrm) { return 0; }
 
     virtual int onAudioDecode(huawei::rtsa::HRTSAAudioDecStru* pstDecPrm) { return 0; }
-
+    
     /**
       订阅对端流成功回调
     */

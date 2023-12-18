@@ -1,5 +1,5 @@
 FROM rust:slim as builder
-RUN apt-get update && apt-get install libclang-dev libbz2-dev -y
+RUN apt-get update && apt-get install libclang-dev libbz2-dev cmake build-essential -y
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

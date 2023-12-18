@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="RemoteTargetsManager">
+    <option name="projectDefaultTargetUuid" value="aefd7090-5e8f-4119-ac77-4f78e6cdbe6d" />
+    <targets>
+      <target name="rust:slim" type="docker" uuid="cad671cc-a47c-4916-bdca-01cf9afc0a3e">
+        <config>
+          <option name="targetPlatform">
+            <TargetPlatform />
+          </option>
+          <option name="buildImageConfig">
+            <BuildImageConfig>
+              <option name="dockerFile" value="Dockerfile" />
+            </BuildImageConfig>
+          </option>
+          <option name="buildNotPull" value="false" />
+          <option name="containerConfig">
+            <ContainerConfig>
+              <option name="runCliOptions" value="--entrypoint= --rm --platform=linux/amd64" />
+            </ContainerConfig>
+          </option>
+          <option name="pullImageConfig">
+            <PullImageConfig>
+              <option name="tagToPull" value="rust:slim" />
+            </PullImageConfig>
+          </option>
+        </config>
+        <ContributedStateBase type="RsLanguageRuntime">
+          <config>
+            <option name="cargoPath" value="/usr/local/cargo/bin/cargo" />
+            <option name="cargoVersion" value="1.74.1 (ecb9851af 2023-10-18)" />
+            <option name="rustcPath" value="/usr/local/cargo/bin/rustc" />
+            <option name="rustcVersion" value="1.74.1 (a28077b28 2023-12-04)" />
+          </config>
+        </ContributedStateBase>
+      </target>
+      <target name="famer.me@127.0.0.1:32222" type="ssh/sftp" uuid="aefd7090-5e8f-4119-ac77-4f78e6cdbe6d">
+        <config>
+          <option name="projectRootOnTarget" value="/home/famer.me/playground" />
+          <option name="serverName" value="famer.me@127.0.0.1:32222 agent" />
+          <option name="useRsync" value="true" />
+        </config>
+        <ContributedStateBase type="RsLanguageRuntime">
+          <config>
+            <option name="cargoPath" value="/home/famer.me/.cargo/bin/cargo" />
+            <option name="cargoVersion" value="1.74.1 (ecb9851af 2023-10-18)" />
+            <option name="rustcPath" value="/home/famer.me/.cargo/bin/rustc" />
+            <option name="rustcVersion" value="1.74.1 (a28077b28 2023-12-04)" />
+          </config>
+        </ContributedStateBase>
+      </target>
+    </targets>
+  </component>
+</project>
