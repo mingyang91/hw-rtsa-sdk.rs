@@ -1,32 +1,76 @@
-use hw_rtsa_sdk_sys::{createHRTSAEngine};
 use crate::handler::HRTSAHandler;
-use crate::join_param::{HRTSAScenarioType, JoinParam};
-use crate::param::HRTSAParam;
+use crate::join_param::{HRTSAScenarioType, JoinParam, self};
+use crate::param::{HRTSAParam, self};
+use hw_rtsa_sdk_sys::{createHRTSAEngine, engine_destory, engine_joinRoom, engine_leaveRoom};
+use thiserror::Error;
 
 pub struct HRTSAEngine {
+    _handler: HRTSAHandler,
     engine: *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEngine,
 }
 
+#[derive(Error, Debug)]
+pub enum CreateError {
+    #[error("param error")]
+    Param(#[from] param::ConvertError),
+}
+
+#[derive(Error, Debug)]
+pub enum EngineError {
+    #[error("param error")]
+    Param(#[from] join_param::ConvertError),
+    #[error("join room error (code: {code})")]
+    ErrorCode { code: i32 }
+}
+
 impl HRTSAEngine {
-    pub fn new(param: HRTSAParam, handler: HRTSAHandler) -> Self {
-        let mut param = param.into();
-        let mut handler = handler.into();
-        HRTSAEngine {
-            engine: unsafe {
-                createHRTSAEngine(
-                    &mut param,
-                    &mut handler,
-                )
-            },
+    pub fn new(param: HRTSAParam, handler: HRTSAHandler) -> Result<Self, CreateError> {
+        let mut param = param.try_into()?;
+        let handler_ptr = handler.raw_ptr();
+        Ok(HRTSAEngine {
+            _handler: handler,
+            engine: unsafe { createHRTSAEngine(&mut param,  handler_ptr) },
+        })
+    }
+
+    pub fn join_room(&self, room_id: &str, user_id: &str) -> Result<(), EngineError> {
+        let join_param = JoinParam::new(
+            "app_id".to_string(),
+            "token".to_string(),
+            "user_id".to_string(),
+            "room_id".to_string(),
+            0,
+            HRTSAScenarioType::NORMAL,
+        ).try_into()?;
+        unsafe {
+            let ret = engine_joinRoom(self.engine, &join_param);
+            if ret == 0 {
+                Ok(())
+            } else {
+                Err(EngineError::ErrorCode { code: ret })
+            }
         }
     }
 
-    pub fn join_room(&self, room_id: &str, user_id: &str) {
-        let room_id = std::ffi::CString::new(room_id).unwrap();
-        let user_id = std::ffi::CString::new(user_id).unwrap();
-        let mut join_param = JoinParam::new("app_id".to_string(), "token".to_string(), "user_id".to_string(), "room_id".to_string(), 0, HRTSAScenarioType::NORMAL);
+    pub fn leave_room(&self) -> Result<(), EngineError> {
         unsafe {
-            ((*(*self.engine).vtable_).huawei_rtsa_IHRTSAEngine_joinRoom)(self.engine, &mut join_param.into());
+            let ret = engine_leaveRoom(self.engine);
+            if ret == 0  {
+                Ok(())
+            } else {
+                Err(EngineError::ErrorCode { code: ret })
+            }
+        }
+    }
+}
+
+impl Drop for HRTSAEngine {
+    fn drop(&mut self) {
+        unsafe {
+            println!("drop engine");
+            // ((*(*self.engine).vtable_).huawei_rtsa_IHRTSAEngine_destory)(self.engine);
+            engine_destory(self.engine);
+            println!("drop done");
         }
     }
 }

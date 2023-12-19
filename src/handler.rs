@@ -1,4 +1,3 @@
-use std::mem::transmute;
 use hw_rtsa_sdk_sys::{createHandler, huawei_rtsa_ProxyHandler};
 
 unsafe extern "C" fn on_join_room_success(this: *const huawei_rtsa_ProxyHandler,
@@ -12,21 +11,18 @@ unsafe extern "C" fn on_join_room_success(this: *const huawei_rtsa_ProxyHandler,
 
 
 pub struct HRTSAHandler {
-    handler: *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler,
+    pub(crate) handler: *mut hw_rtsa_sdk_sys::huawei_rtsa_ProxyHandler,
 }
 
 impl HRTSAHandler {
     pub fn new() -> Self {
         HRTSAHandler {
-            handler: unsafe { createHandler() as *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler },
+            handler: unsafe { createHandler() },
         }
     }
 
-}
-
-impl Into<hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler> for HRTSAHandler {
-    fn into(self) -> hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler {
-        unsafe { transmute(self.handler) }
+    pub fn raw_ptr(&self) -> *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler {
+        self.handler as *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler
     }
 }
 

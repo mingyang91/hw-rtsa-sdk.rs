@@ -1,12 +1,9 @@
-use std::mem::{transmute};
+use std::mem::transmute;
 use hw_rtsa_sdk_sys::huawei_rtsa_HRTSAJoinParam;
+use thiserror::Error;
 
-//    pub appId: [::std::os::raw::c_char; 129usize],
-//     pub token: [::std::os::raw::c_char; 2049usize],
-//     pub userId: [::std::os::raw::c_char; 65usize],
-//     pub roomId: [::std::os::raw::c_char; 65usize],
-//     pub ctime: ::std::os::raw::c_longlong,
-//     pub scenario: huawei_rtsa_HRTSAScenarioType,
+use crate::utils::ToFixedBytes;
+
 pub struct JoinParam {
     pub app_id: String,
     pub token: String,
@@ -27,7 +24,7 @@ pub enum HRTSAScenarioType {
     NORMAL = 0,
     LARGE = 1,
     P2P = 2,
-    AUTO_CMD = 3
+    AutoCmd = 3
 }
 
 impl JoinParam {
@@ -43,26 +40,35 @@ impl JoinParam {
     }
 }
 
-impl Into<huawei_rtsa_HRTSAJoinParam> for JoinParam {
-    fn into(self) -> huawei_rtsa_HRTSAJoinParam {
-        let mut app_id: [u8; 129] = [0; 129];
-        app_id.copy_from_slice(self.app_id.as_bytes());
-        let mut token: [u8; 2049] = [0; 2049];
-        token.copy_from_slice(self.token.as_bytes());
-        let mut user_id: [u8; 65] = [0; 65];
-        user_id.copy_from_slice(self.user_id.as_bytes());
-        let mut room_id: [u8; 65] = [0; 65];
-        room_id.copy_from_slice(self.room_id.as_bytes());
+#[derive(Error, Debug)]
+pub enum ConvertError {
+    #[error("string `{str}` to long to field `{name}[{max_size}]`")]
+    StringToLong { name: String, max_size: usize, str: String }
+}
+
+impl TryInto<huawei_rtsa_HRTSAJoinParam> for JoinParam {
+    type Error = ConvertError;
+    fn try_into(self) -> Result<huawei_rtsa_HRTSAJoinParam, Self::Error> {
+        let app_id: [u8; 129] = self.app_id.clone().to_fixed_bytes()
+            .ok_or(ConvertError::StringToLong { name: "app_id".to_string(), max_size: 129, str: self.app_id })?;
+        let token: [u8; 2049] = self.token.clone().to_fixed_bytes()
+            .ok_or(ConvertError::StringToLong { name: "token".to_string(), max_size: 2049, str: self.token })?;
+        let user_id: [u8; 65] = self.user_id.clone().to_fixed_bytes()
+            .ok_or(ConvertError::StringToLong { name: "user_id".to_string(), max_size: 65, str: self.user_id })?;
+        let room_id: [u8; 65] = self.room_id.clone().to_fixed_bytes()
+            .ok_or(ConvertError::StringToLong { name: "room_id".to_string(), max_size: 65, str: self.room_id })?;
+
 
         unsafe {
-            huawei_rtsa_HRTSAJoinParam {
+            let param = huawei_rtsa_HRTSAJoinParam {
                 appId: transmute(app_id),
                 token: transmute(token),
                 userId: transmute(user_id),
                 roomId: transmute(room_id),
                 ctime: self.ctime,
                 scenario: self.scenario as u32,
-            }
+            };
+            Ok(param)
         }
     }
 }

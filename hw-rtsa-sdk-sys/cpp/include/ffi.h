@@ -70,4 +70,8 @@ public:
 } // namespace huawei
 
 
-huawei::rtsa::ProxyHandler* createHandler();
+extern "C" huawei::rtsa::ProxyHandler* createHandler();
+extern "C" int engine_setInitConfig(huawei::rtsa::IHRTSAEngine &engine, const huawei::rtsa::HRTSAInitConfig &config);
+extern "C" int engine_joinRoom(huawei::rtsa::IHRTSAEngine &engine, const huawei::rtsa::HRTSAJoinParam &joinRoom);
+extern "C" int engine_leaveRoom(huawei::rtsa::IHRTSAEngine &engine);
+extern "C" int engine_destory(huawei::rtsa::IHRTSAEngine &engine);

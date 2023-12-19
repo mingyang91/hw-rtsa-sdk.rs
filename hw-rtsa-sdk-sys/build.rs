@@ -12,6 +12,10 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib={}", cpp_stdlib);
     }
 
+    println!("cargo:rerun-if-changed=cpp/include/ffi.h");
+    println!("cargo:rerun-if-changed=cpp/src/ffi.cpp");
+    println!("cargo:rerun-if-changed=cpp/CMakeLists.txt");
+
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
     let cpp_root = out.join("cpp/");
 
@@ -29,7 +33,6 @@ fn main() {
     let sdk_include = "-Icpp/hw-rtsa-sdk/include";
     let bindings = bindgen::Builder::default()
         .header("cpp/include/ffi.h")
-        .vtable_generation(true)
         .opaque_type("std::.*")
         .blocklist_type("rep")
         .blocklist_type("char_type")
