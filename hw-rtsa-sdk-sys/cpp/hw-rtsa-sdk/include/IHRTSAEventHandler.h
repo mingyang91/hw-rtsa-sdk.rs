@@ -274,6 +274,7 @@ public:
     */
     virtual void onSubStreamSuccess(const char *userId) {}
 };
+
 } // namespace rtsa
 } // namespace huawei
 
