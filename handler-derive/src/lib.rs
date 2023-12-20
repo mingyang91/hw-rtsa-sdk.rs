@@ -9,24 +9,29 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
     let name = input.ident;
     let expanded = match input.data {
         Data::Struct(data) => {
-            let expand_callback_functions = data.fields.iter()
-                .filter_map(|f| {
-                    match parse_ffi_callback(&f.ty) {
-                        Some(func) => Some(expand_ffi_callback(&f.ident, func)),
+            let parse_ffi_callbacks = data.fields.iter()
+                .map(|f| parse_ffi_callback(&f.ty));
+            let fields_zip_callbacks = data.fields.iter().zip(parse_ffi_callbacks);
+            let expand_callback_functions = fields_zip_callbacks
+                .clone()
+                .filter_map(|(f, ffi)| {
+                    match ffi {
+                        Some(func) => Some(expand_ffi_callback(&f.ident.as_ref().expect("field no name"), func)),
                         None => None,
                     }
                 });
-            let expand_external_functions = data.fields.iter()
-                .filter_map(|f| {
-                    match parse_ffi_callback(&f.ty) {
-                        Some(func) => Some(expand_external_function(&f.ident, func)),
+            let expand_external_functions = fields_zip_callbacks
+                .clone()
+                .filter_map(|(f, ffi)| {
+                    match ffi {
+                        Some(func) => Some(expand_external_function(&f.ident.as_ref().expect("field no name"), func)),
                         None => None,
                     }
                 });
-            let expand_callback_register = data.fields.iter()
-                .filter_map(|f| {
-                    match parse_ffi_callback(&f.ty) {
-                        Some(_) => Some(expand_callback_register(&f.ident)),
+            let expand_callback_register = fields_zip_callbacks
+                .filter_map(|(f, ffi)| {
+                    match ffi {
+                        Some(_) => Some(expand_callback_register(&f.ident.as_ref().expect("field no name"))),
                         None => None,
                     }
                 });
@@ -152,7 +157,7 @@ fn parse_ffi_callback(ty: &syn::Type) -> Option<&TypeBareFn> {
     Some(bare_fn)
 }
 
-fn expand_ffi_callback(ident: &Option<proc_macro2::Ident>, func: &TypeBareFn) -> proc_macro2::TokenStream {
+fn expand_ffi_callback(ident: &proc_macro2::Ident, func: &TypeBareFn) -> proc_macro2::TokenStream {
     let names = func.inputs
         .iter()
         .skip(1)
@@ -162,9 +167,10 @@ fn expand_ffi_callback(ident: &Option<proc_macro2::Ident>, func: &TypeBareFn) ->
         .skip(1)
         .map(|arg| &arg.ty);
     let ret = &func.output;
+    let rust_name = transform_name(&ident);
     let expanded = quote! {
-        fn #ident(&mut self #(, #names: #types)*) #ret {
-            self.log(format!("{}: {}", stringify!(#ident), "not implemented").as_str());
+        fn #rust_name(&mut self #(, #names: #types)*) #ret {
+            self.log(format!("{}: {}", stringify!(#rust_name), "not implemented").as_str());
             Default::default()
         }
     };
@@ -177,14 +183,14 @@ fn extern_function_suffix(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
     proc_macro2::Ident::new(&format!("{}_entry", ident), ident.span())
 }
 
-fn expand_external_function(ident: &Option<proc_macro2::Ident>, func: &TypeBareFn) -> proc_macro2::TokenStream {
+fn expand_external_function(ident: &proc_macro2::Ident, func: &TypeBareFn) -> proc_macro2::TokenStream {
     let names = func.inputs.iter()
         .map(|arg| arg.name.as_ref().map(|i| &i.0));
     let types = func.inputs.iter()
         .map(|arg| &arg.ty);
     let names2 = names.clone().skip(1);
     let ret = &func.output;
-    let ident = ident.as_ref().expect("ident not found");
+    let rust_name = transform_name(ident);
     let suffixed_ident = extern_function_suffix(ident);
 
     let expanded = quote! {
@@ -192,7 +198,7 @@ fn expand_external_function(ident: &Option<proc_macro2::Ident>, func: &TypeBareF
             let register = get_register();
             if let Some(handler) = register.get(&self_) {
                 let mut guard = handler.inner.lock().expect("lock failed");
-                guard.#ident(#(#names2, )*)
+                guard.#rust_name(#(#names2, )*)
             } else {
                 eprintln!("{:p}: handler not found", self_);
                 Default::default()
@@ -204,10 +210,27 @@ fn expand_external_function(ident: &Option<proc_macro2::Ident>, func: &TypeBareF
     expanded
 }
 
-fn expand_callback_register(ident: &Option<proc_macro2::Ident>) -> proc_macro2::TokenStream {
-    let ident = ident.as_ref().expect("ident not found");
+fn expand_callback_register(ident: &proc_macro2::Ident) -> proc_macro2::TokenStream {
     let suffixed_ident = extern_function_suffix(ident);
     let expanded = quote! { (*raw_ptr).#ident = Some(#suffixed_ident); };
 
     expanded
+}
+
+// input: _functionNameFromCpp
+// output: function_name_from_cpp
+fn transform_name(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
+    let mut name = String::new();
+    for c in ident.to_string().chars() {
+        if c.is_uppercase() {
+            name.push('_');
+            name.push(c.to_lowercase().next().expect("impossible"));
+        } else {
+            name.push(c);
+        }
+    }
+    if name.starts_with('_') {
+        name.remove(0);
+    }
+    proc_macro2::Ident::new(&name, ident.span())
 }
