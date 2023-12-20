@@ -7,6 +7,8 @@ links = "rtsaControl"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+[dependencies.handler-derive]
+path = "../handler-derive"
 
 [build-dependencies]
 bindgen = "0.69"

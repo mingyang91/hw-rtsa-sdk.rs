@@ -1,9 +1,63 @@
 extern crate bindgen;
 
+use bindgen::callbacks::{ParseCallbacks, TypeKind};
 use cmake::Config;
+use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use fs_extra;
+
+#[derive(Debug, Eq, PartialEq)]
+struct DeriveSelector {
+    kind: TypeKind,
+    name: String,
+}
+
+impl core::hash::Hash for DeriveSelector {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self.kind {
+            TypeKind::Struct => "Struct".hash(state),
+            TypeKind::Union => "Union".hash(state),
+            TypeKind::Enum => "Enum".hash(state),
+        };
+        self.name.hash(state);
+    }
+}
+
+impl DeriveSelector {
+    fn new(kind: TypeKind, name: String) -> Self {
+        Self { kind, name }
+    }
+}
+
+#[derive(Debug)]
+struct DeriveCallbacks {
+    derives: HashMap<DeriveSelector, Vec<String>>,
+}
+
+impl DeriveCallbacks {
+    fn new(derives: HashMap<DeriveSelector, Vec<String>>) -> Self {
+        Self { derives }
+    }
+}
+
+impl ParseCallbacks for DeriveCallbacks {
+    fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
+        let selector = DeriveSelector::new(info.kind, info.name.to_string());
+        if let Some(matched) = self.derives.get(&selector) {
+            matched.clone()
+        } else {
+            vec![]
+        }
+    }
+}
+
+fn derive_callbacks() -> DeriveCallbacks {
+    let derives: HashMap<DeriveSelector, Vec<String>> = HashMap::from([
+        (DeriveSelector::new(TypeKind::Struct,"huawei_rtsa_ProxyHandler".to_string()), vec!["Handler".to_string()])
+    ]);
+    DeriveCallbacks::new(derives)
+}
 
 fn main() {
     let target = env::var("TARGET").unwrap();
@@ -42,6 +96,7 @@ fn main() {
         .blocklist_item("__gnu_cxx::__min")
         .clang_args(&["-x","c++","-std=c++17", "-I./cpp", sdk_include])
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .parse_callbacks(Box::new(derive_callbacks()))
         .generate();
     let b = bindings.expect("Unable to generate bindings");
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());

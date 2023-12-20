@@ -1,0 +1,15 @@
+[package]
+name = "handler-derive"
+version = "0.1.0"
+edition = "2021"
+
+
+[lib]
+name = "handler_derive"
+path = "src/lib.rs"
+crate-type = ["proc-macro"]
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }

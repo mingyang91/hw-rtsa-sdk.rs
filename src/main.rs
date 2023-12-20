@@ -1,9 +1,12 @@
 use std::env::current_dir;
+use std::time::Duration;
 
 use hw_rtsa_sdk::engine::HRTSAEngine;
-use hw_rtsa_sdk::handler::HRTSAHandler;
+use hw_rtsa_sdk::handler::{HRTSAHandlerInner};
 use hw_rtsa_sdk::param::HRTSAParam;
+use hw_rtsa_sdk_sys::{HRTSAHandler};
 use thiserror::Error;
+use tokio::time::sleep;
 
 #[derive(Error, Debug)]
 enum Error {
@@ -21,12 +24,14 @@ async fn main() -> Result<(), Error> {
     let pwd = current_dir().expect("get current dir error");
     
     param.log_path = pwd.display().to_string();
-    let handler = HRTSAHandler::new();
+    let real_handler = HRTSAHandlerInner::new();
+    let handler = HRTSAHandler::new(real_handler);
     let engine = HRTSAEngine::new(param, handler)?;
     println!("created");
     let ret = engine.join_room("room_id", "user_id")?;
-    engine.leave_room();
-    println!("joined");
+    println!("join room");
+    sleep(Duration::from_secs(10)).await;
+    // engine.leave_room();
 
     Ok(())
 }

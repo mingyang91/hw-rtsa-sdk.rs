@@ -1,7 +1,7 @@
-use crate::handler::HRTSAHandler;
+// use crate::handler::HRTSAHandler;
 use crate::join_param::{HRTSAScenarioType, JoinParam, self};
 use crate::param::{HRTSAParam, self};
-use hw_rtsa_sdk_sys::{createHRTSAEngine, engine_destory, engine_joinRoom, engine_leaveRoom};
+use hw_rtsa_sdk_sys::{createHRTSAEngine, engine_destory, engine_joinRoom, engine_leaveRoom, HRTSAHandler};
 use thiserror::Error;
 
 pub struct HRTSAEngine {
@@ -26,10 +26,10 @@ pub enum EngineError {
 impl HRTSAEngine {
     pub fn new(param: HRTSAParam, handler: HRTSAHandler) -> Result<Self, CreateError> {
         let mut param = param.try_into()?;
-        let handler_ptr = handler.raw_ptr();
+        let handler_ptr = handler.raw_ptr() as *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler;
         Ok(HRTSAEngine {
             _handler: handler,
-            engine: unsafe { createHRTSAEngine(&mut param,  handler_ptr) },
+            engine: unsafe { createHRTSAEngine(&mut param, handler_ptr) },
         })
     }
 

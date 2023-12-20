@@ -4,5 +4,8 @@
 		"iostream": "cpp",
 		"ostream": "cpp",
 		"functional": "cpp"
-	}
+	},
+	"rust-analyzer.linkedProjects": [
+		"./handler-derive/Cargo.toml"
+	]
 }

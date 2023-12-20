@@ -125,40 +125,56 @@ typedef void (*onSubStreamSuccessCallback)(const ProxyHandler *self, const char 
 }
 class ProxyHandler : public IHRTSAEventHandler {
 public:
-    onJoinRoomSuccessCallback _onJoinRoomSuccess;
-    onTransportReadyCallback _onTransportReady;
-    onTransportClosedCallback _onTransportClosed;
-    onTransportNetworkStatUpdateCallback _onTransportNetworkStatUpdate;
-    onRemoteUserOnlineCallback _onRemoteUserOnline;
-    onRemoteUserOfflineCallback _onRemoteUserOffline;
-    onErrorCallback _onError;
-    onWarningCallback _onWarning;
-    onApiCalledCallback _onApiCalled;
-    onLeaveRoomCallback _onLeaveRoom;
-    onMediaSocketFdCallback _onMediaSocketFd;
-    onAuthorizationExpiredCallback _onAuthorizationExpired;
-    onConnectionChangedNotifyCallback _onConnectionChangedNotify;
-    onConnectionChangedNeedRejoinCallback _onConnectionChangedNeedRejoin;
-    onRemoteVideoStateChangedNotifyCallback _onRemoteVideoStateChangedNotify;
-    onRemoteCommonStateChangedNotifyCallback _onRemoteCommonStateChangedNotify;
-    onRemoteVideoPacketDataCallback _onRemoteVideoPacketData;
-    onRemoteVideoFrameDataCallback _onRemoteVideoFrameData;
-    onRemoteCommonDataCallback _onRemoteCommonData;
-    onRequestKeyFrameCallback _onRequestKeyFrame;
-    onLocalVideoBitrateUpdateCallback _onLocalVideoBitrateUpdate;
-    onLocalVideoStatsNotifyCallback _onLocalVideoStatsNotify;
-    onRemoteVideoStatsNotifyCallback _onRemoteVideoStatsNotify;
-    onLocalVideoBandwidthDistributionCallback _onLocalVideoBandwidthDistribution;
-    onRemoteAudioStateChangedNotifyCallback _onRemoteAudioStateChangedNotify;
-    onRemoteAudioPacketDataCallback _onRemoteAudioPacketData;
-    onRemoteAudioFrameDataCallback _onRemoteAudioFrameData;
-    onLocalAudioStatsNotifyCallback _onLocalAudioStatsNotify;
-    onRemoteAudioStatsNotifyCallback _onRemoteAudioStatsNotify;
-    onUserVolumeStatsNotifyCallback _onUserVolumeStatsNotify;
-    onRemoteCommandPacketCallback _onRemoteCommandPacket;
-    onAudioEncodeCallback _onAudioEncode;
-    onAudioDecodeCallback _onAudioDecode;
-    onSubStreamSuccessCallback _onSubStreamSuccess;
+    void (* _onJoinRoomSuccess)(const ProxyHandler *self, const char *userId, const char *roomId, int elapsed);
+    void (* _onTransportReady)(const ProxyHandler *self);
+    void (* _onTransportClosed)(const ProxyHandler *self);
+    void (* _onTransportNetworkStatUpdate)(const ProxyHandler *self, HRTSATransportNetworkQuality &quality);
+    void (* _onRemoteUserOnline)(const ProxyHandler *self, const char *userId);
+    void (* _onRemoteUserOffline)(const ProxyHandler *self, const char *userId, int reason);
+    void (* _onError)(const ProxyHandler *self, int code, const char *msg);
+    void (* _onWarning)(const ProxyHandler *self, int code, const char *msg);
+    void (* _onApiCalled)(const ProxyHandler *self, int error, const char *api, const char *msg);
+    void (* _onLeaveRoom)(const ProxyHandler *self, HRTSALeaveReason reason, const HRTSALeaveStatsInfo *statsInfo);
+    void (* _onMediaSocketFd)(const ProxyHandler *self, int socketFd);
+    void (* _onAuthorizationExpired)(const ProxyHandler *self);
+    void (* _onConnectionChangedNotify)(const ProxyHandler *self, int state, int reason);
+    void (* _onConnectionChangedNeedRejoin)(const ProxyHandler *self, bool& needRejoin);
+    void (* _onRemoteVideoStateChangedNotify)(const ProxyHandler *self, const char *userId,
+        const HRTSAStreamType streamType, HRTSARemoteVideoStreamState state, HRTSARemoteVideoStreamStateReason reason);
+    void (* _onRemoteCommonStateChangedNotify)(const ProxyHandler *self, const char *userId,
+        const HRTSAStreamType streamType, HRTSARemoteVideoStreamState state, HRTSARemoteVideoStreamStateReason reason);
+    void (* _onRemoteVideoPacketData)(const ProxyHandler *self, const char *userId,
+        const HRTSAStreamType streamType, const unsigned char *packet, unsigned int length);
+    void (* _onRemoteVideoFrameData)(const ProxyHandler *self, const char *userId,
+        const HRTSAStreamType streamType, const unsigned char *frame, unsigned int length, HRTSAFrameVideoOption option);
+    void (* _onRemoteCommonData)(const ProxyHandler *self, const struct HRTSATransportMsgHdr *msg);
+    void (* _onRequestKeyFrame)(const ProxyHandler *self, const char *userId,
+        const HRTSAStreamType streamType);
+    void (* _onLocalVideoBitrateUpdate)(const ProxyHandler *self, const HRTSAStreamType streamType,
+        unsigned int targetEncBitrate);
+    void (* _onLocalVideoStatsNotify)(const ProxyHandler *self,
+        const UpNetworkVideoStatics *connectionStatics, const VideoSendStaticsInfo *videoSendStatics);
+    void (* _onRemoteVideoStatsNotify)(const ProxyHandler *self,
+        const DownNetworkVideoStatics *connectionStatics, const VideoRecvStaticsInfo *videoRecvStatics);
+    void (* _onLocalVideoBandwidthDistribution)(const ProxyHandler *self, unsigned long bandwidth,
+        HRTSABandwidthDistribution *result);
+    void (* _onRemoteAudioStateChangedNotify)(const ProxyHandler *self, const char *userId,
+        HRTSARemoteAudioStreamState state, HRTSARemoteAudioStreamStateReason reason);
+    void (* _onRemoteAudioPacketData)(const ProxyHandler *self, const char *userId,
+        const unsigned char *packet, unsigned int length);
+    void (* _onRemoteAudioFrameData)(const ProxyHandler *self, const char *userId,
+        const unsigned char *frame, unsigned int length, HRTSAFrameAudioOption option);
+    void (* _onLocalAudioStatsNotify)(const ProxyHandler *self,
+        const AudioSendStaticsInfo *audioSendStatics);
+    void (* _onRemoteAudioStatsNotify)(const ProxyHandler *self, const char *userId,
+        const AudioRecvStaticsInfo *audioRecvStatics);
+    void (* _onUserVolumeStatsNotify)(const ProxyHandler *self, int totalVolume, int totalUserCount,
+        const HRTSAAudioMaxSpeakerInfo *audioMaxSpeakers);
+    void (* _onRemoteCommandPacket)(const ProxyHandler *self, const char *userId,
+        const unsigned char *packet, unsigned int length);
+    int (* _onAudioEncode)(const ProxyHandler *self, huawei::rtsa::HRTSAAudioEncStru* pstEncPrm);
+    int (* _onAudioDecode)(const ProxyHandler *self, huawei::rtsa::HRTSAAudioDecStru* pstDecPrm);
+    void (* _onSubStreamSuccess)(const ProxyHandler *self, const char *userId);
 
     PROXY_CALL(void, onJoinRoomSuccess, const char*, userId, const char*, roomId, int, elapsed);
     PROXY_CALL(void, onTransportReady);
