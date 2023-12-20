@@ -9,11 +9,13 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
     let name = input.ident;
     let expanded = match input.data {
         Data::Struct(data) => {
-            let callback_field_names = data.fields.iter()
-                .filter(|f| parse_ffi_callback(&f.ty).is_some())
-                .map(|f| &f.ident);
-            let callback_field_types = data.fields.iter()
-                .filter_map(|f| parse_ffi_callback(&f.ty));
+            let expand_callback_functions = data.fields.iter()
+                .filter_map(|f| {
+                    match parse_ffi_callback(&f.ty) {
+                        Some(func) => Some(expand_ffi_callback(&f.ident, func)),
+                        None => None,
+                    }
+                });
             quote! {
                struct HandlerRegister {
                  register: std::sync::RwLock<std::collections::HashMap<*const #name, HRTSAHandler>>,
@@ -50,10 +52,7 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
 
                pub trait Handler {
                  fn raw_ptr(&self) -> *mut #name;
-                 #(fn #callback_field_names(&mut self) -> &#callback_field_types {
-                //    &self.#callback_field_names
-                    todo!("TBD")
-                 })*
+                 #(#expand_callback_functions)*
                }
 
                #[derive(Clone)]
@@ -131,4 +130,21 @@ fn parse_ffi_callback(ty: &syn::Type) -> Option<&TypeBareFn> {
     };
 
     Some(bare_fn)
+}
+
+fn expand_ffi_callback(ident: &Option<proc_macro2::Ident>, func: &TypeBareFn) -> proc_macro2::TokenStream {
+    let names = func.inputs.iter()
+        .map(|arg| arg.name.as_ref().map(|i| &i.0));
+    let types = func.inputs.iter()
+        .map(|arg| &arg.ty);
+    let ret = &func.output;
+    let expanded = quote! {
+        fn #ident(&mut self #(, #names: #types)*) #ret {
+            // &self.#ident
+            todo!("TBD")
+        }
+    };
+
+    dbg!(expanded.to_string());
+    expanded
 }
