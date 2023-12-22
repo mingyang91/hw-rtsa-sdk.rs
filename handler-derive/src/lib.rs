@@ -55,7 +55,6 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
                 #(#expand_external_functions)*
                 #expand_register_definition
                 pub trait #callback_protocol_ident {
-                    fn raw_ptr(&self) -> *mut #name;
                     fn log(&self, msg: &str) {}
                     #(#expand_callback_functions)*
                 }
@@ -63,32 +62,29 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
                 #[derive(Clone)]
                 pub struct #callback_agent_ident {
                     inner: std::sync::Arc<std::sync::Mutex<Box<dyn #callback_protocol_ident>>>,
+                    pub raw_ptr: *mut #name,
                 }
 
                 impl #callback_agent_ident {
                     pub fn new<T: #callback_protocol_ident + 'static>(handler: T) -> Self {
-                        let mut raw_ptr = handler.raw_ptr();
+                        let mut raw_ptr = unsafe { createHandler() };
                         unsafe {
                             #(#expand_callback_register)*
                         }
                         let key = raw_ptr as *const #name;
                         let this = #callback_agent_ident {
                             inner: std::sync::Arc::new(std::sync::Mutex::new(Box::new(handler))),
+                            raw_ptr
                         };
                         #getter_ident().insert(key, this.clone());
                         this
-                    }
-
-                    pub fn raw_ptr(&self) -> *mut #name {
-                        self.inner.lock().expect("lock failed").raw_ptr() as *mut #name
                     }
                 }
 
                 impl Drop for #callback_agent_ident {
                     fn drop(&mut self) {
                         if 1 == std::sync::Arc::strong_count(&self.inner) {
-                            let key = self.inner.lock().expect("lock failed").raw_ptr();
-                            #getter_ident().remove(&(key as *const #name));
+                            #getter_ident().remove(&(self.raw_ptr as *const #name));
                         }
                     }
                 }

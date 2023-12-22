@@ -111,10 +111,6 @@ impl HRTSAHandlerInner {
 // }
 
 impl huawei_rtsa_ProxyHandler_FFIProtocol for HRTSAHandlerInner {
-    fn raw_ptr(&self) -> *mut hw_rtsa_sdk_sys::huawei_rtsa_ProxyHandler {
-        self.handler as *mut hw_rtsa_sdk_sys::huawei_rtsa_ProxyHandler
-    }
-
     fn log(&self, msg: &str) {
         println!("{}", msg);
     }

@@ -25,7 +25,7 @@ pub enum EngineError {
 impl HRTSAEngine {
     pub fn new(param: HRTSAParam, handler: huawei_rtsa_ProxyHandler_FFIAgent) -> Result<Self, CreateError> {
         let mut param = param.try_into()?;
-        let handler_ptr = handler.raw_ptr() as *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler;
+        let handler_ptr = handler.raw_ptr as *mut hw_rtsa_sdk_sys::huawei_rtsa_IHRTSAEventHandler;
         Ok(HRTSAEngine {
             _handler: handler,
             engine: unsafe { createHRTSAEngine(&mut param, handler_ptr) },
