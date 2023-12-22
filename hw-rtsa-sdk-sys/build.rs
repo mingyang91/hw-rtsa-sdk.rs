@@ -54,7 +54,8 @@ impl ParseCallbacks for DeriveCallbacks {
 
 fn derive_callbacks() -> DeriveCallbacks {
     let derives: HashMap<DeriveSelector, Vec<String>> = HashMap::from([
-        (DeriveSelector::new(TypeKind::Struct,"huawei_rtsa_ProxyHandler".to_string()), vec!["Handler".to_string()])
+        (DeriveSelector::new(TypeKind::Struct,"huawei_rtsa_ProxyHandler".to_string()),
+           vec!["FFICallbacks".to_string()])
     ]);
     DeriveCallbacks::new(derives)
 }

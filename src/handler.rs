@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ffi::{c_char, c_int};
 use std::sync::{Mutex, Arc, RwLock, OnceLock};
 
-use hw_rtsa_sdk_sys::{createHandler, huawei_rtsa_ProxyHandler, huawei_rtsa_IHRTSAEventHandler, Handler};
+use hw_rtsa_sdk_sys::{createHandler, huawei_rtsa_ProxyHandler, huawei_rtsa_IHRTSAEventHandler, huawei_rtsa_ProxyHandler_FFIProtocol};
 
 // struct HandlerRegister {
 //     register: RwLock<HashMap<*const huawei_rtsa_ProxyHandler, HRTSAHandler>>,
@@ -110,7 +110,7 @@ impl HRTSAHandlerInner {
 //     }
 // }
 
-impl Handler for HRTSAHandlerInner {
+impl huawei_rtsa_ProxyHandler_FFIProtocol for HRTSAHandlerInner {
     fn raw_ptr(&self) -> *mut hw_rtsa_sdk_sys::huawei_rtsa_ProxyHandler {
         self.handler as *mut hw_rtsa_sdk_sys::huawei_rtsa_ProxyHandler
     }

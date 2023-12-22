@@ -4,7 +4,7 @@ use std::time::Duration;
 use hw_rtsa_sdk::engine::HRTSAEngine;
 use hw_rtsa_sdk::handler::{HRTSAHandlerInner};
 use hw_rtsa_sdk::param::HRTSAParam;
-use hw_rtsa_sdk_sys::{HRTSAHandler};
+use hw_rtsa_sdk_sys::{huawei_rtsa_ProxyHandler_FFIAgent};
 use thiserror::Error;
 use tokio::time::sleep;
 
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Error> {
     
     param.log_path = pwd.display().to_string();
     let real_handler = HRTSAHandlerInner::new();
-    let handler = HRTSAHandler::new(real_handler);
+    let handler = huawei_rtsa_ProxyHandler_FFIAgent::new(real_handler);
     let engine = HRTSAEngine::new(param, handler)?;
     println!("created");
     let ret = engine.join_room("room_id", "user_id")?;

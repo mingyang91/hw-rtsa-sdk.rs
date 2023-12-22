@@ -1,14 +1,29 @@
+mod register;
+
 extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, PathArguments, TypeBareFn};
+use crate::register::{Definition, register_definition};
 
-#[proc_macro_derive(Handler)]
+#[proc_macro_derive(FFICallbacks)]
 pub fn handler_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
     let expanded = match input.data {
         Data::Struct(data) => {
+
+            let callback_agent_name = format!("{}_FFIAgent", &name.to_string());
+            let callback_agent_ident = proc_macro2::Ident::new(&callback_agent_name, name.span());
+
+            let callback_protocol_name = format!("{}_FFIProtocol", &name.to_string());
+            let callback_protocol_ident = proc_macro2::Ident::new(&callback_protocol_name, name.span());
+            let Definition {
+                body: expand_register_definition,
+                name: register_ident,
+                getter: getter_ident
+            } = register_definition(&name, &callback_agent_ident);
+
             let parse_ffi_callbacks = data.fields.iter()
                 .map(|f| parse_ffi_callback(&f.ty));
             let fields_zip_callbacks = data.fields.iter().zip(parse_ffi_callbacks);
@@ -24,7 +39,7 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
                 .clone()
                 .filter_map(|(f, ffi)| {
                     match ffi {
-                        Some(func) => Some(expand_external_function(&f.ident.as_ref().expect("field no name"), func)),
+                        Some(func) => Some(expand_external_function(&f.ident.as_ref().expect("field no name"), &getter_ident, func)),
                         None => None,
                     }
                 });
@@ -35,63 +50,32 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
                         None => None,
                     }
                 });
+
             quote! {
                 #(#expand_external_functions)*
-                struct HandlerRegister {
-                  register: std::sync::RwLock<std::collections::HashMap<*const #name, HRTSAHandler>>,
-                }
-
-                impl HandlerRegister {
-                    fn get(&self, handler: &*const #name) -> Option<HRTSAHandler> {
-                        self.register.read().expect("read lock failed").get(handler).map(|h| h.clone())
-                    }
-                    fn insert(&self, handler: *const #name, h: HRTSAHandler) {
-                        self.register.write().expect("write lock failed").insert(handler, h);
-                    }
-                    fn remove(&self, handler: &*const #name) {
-                        self.register.write().expect("write lock failed").remove(handler);
-                    }
-                }
-
-                unsafe impl Sync for HandlerRegister {}
-                unsafe impl Send for HandlerRegister {}
-
-                impl Default for HandlerRegister {
-                   fn default() -> Self {
-                        HandlerRegister {
-                            register: std::sync::RwLock::new(std::collections::HashMap::new()),
-                        }
-                   }
-                }
-
-                static REGISTER: std::sync::OnceLock<HandlerRegister> = std::sync::OnceLock::new();
-
-                fn get_register() -> &'static HandlerRegister {
-                    REGISTER.get_or_init(Default::default)
-                }
-
-                pub trait Handler {
+                #expand_register_definition
+                pub trait #callback_protocol_ident {
                     fn raw_ptr(&self) -> *mut #name;
                     fn log(&self, msg: &str) {}
                     #(#expand_callback_functions)*
                 }
 
                 #[derive(Clone)]
-                pub struct HRTSAHandler {
-                    inner: std::sync::Arc<std::sync::Mutex<Box<dyn Handler>>>,
+                pub struct #callback_agent_ident {
+                    inner: std::sync::Arc<std::sync::Mutex<Box<dyn #callback_protocol_ident>>>,
                 }
 
-                impl HRTSAHandler {
-                    pub fn new<T: Handler + 'static>(handler: T) -> Self {
+                impl #callback_agent_ident {
+                    pub fn new<T: #callback_protocol_ident + 'static>(handler: T) -> Self {
                         let mut raw_ptr = handler.raw_ptr();
                         unsafe {
                             #(#expand_callback_register)*
                         }
                         let key = raw_ptr as *const #name;
-                        let this = HRTSAHandler {
+                        let this = #callback_agent_ident {
                             inner: std::sync::Arc::new(std::sync::Mutex::new(Box::new(handler))),
                         };
-                        get_register().insert(key, this.clone());
+                        #getter_ident().insert(key, this.clone());
                         this
                     }
 
@@ -100,11 +84,11 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
                     }
                 }
 
-                impl Drop for HRTSAHandler {
+                impl Drop for #callback_agent_ident {
                     fn drop(&mut self) {
                         if 1 == std::sync::Arc::strong_count(&self.inner) {
                             let key = self.inner.lock().expect("lock failed").raw_ptr();
-                            get_register().remove(&(key as *const #name));
+                            #getter_ident().remove(&(key as *const #name));
                         }
                     }
                 }
@@ -167,7 +151,7 @@ fn expand_ffi_callback(ident: &proc_macro2::Ident, func: &TypeBareFn) -> proc_ma
         .skip(1)
         .map(|arg| &arg.ty);
     let ret = &func.output;
-    let rust_name = transform_name(&ident);
+    let rust_name = to_rust_name(&ident);
     let expanded = quote! {
         fn #rust_name(&mut self #(, #names: #types)*) #ret {
             self.log(format!("{}: {}", stringify!(#rust_name), "not implemented").as_str());
@@ -183,24 +167,26 @@ fn extern_function_suffix(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
     proc_macro2::Ident::new(&format!("{}_entry", ident), ident.span())
 }
 
-fn expand_external_function(ident: &proc_macro2::Ident, func: &TypeBareFn) -> proc_macro2::TokenStream {
+fn expand_external_function(ident: &proc_macro2::Ident,
+                            getter: &proc_macro2::Ident,
+                            func: &TypeBareFn) -> proc_macro2::TokenStream {
     let names = func.inputs.iter()
         .map(|arg| arg.name.as_ref().map(|i| &i.0));
     let types = func.inputs.iter()
         .map(|arg| &arg.ty);
     let names2 = names.clone().skip(1);
     let ret = &func.output;
-    let rust_name = transform_name(ident);
+    let rust_name = to_rust_name(ident);
     let suffixed_ident = extern_function_suffix(ident);
 
     let expanded = quote! {
         extern "C" fn #suffixed_ident(#(#names: #types, )*) #ret {
-            let register = get_register();
+            let register = #getter();
             if let Some(handler) = register.get(&self_) {
                 let mut guard = handler.inner.lock().expect("lock failed");
                 guard.#rust_name(#(#names2, )*)
             } else {
-                eprintln!("{:p}: handler not found", self_);
+                eprintln!("{:p}: #callback_protocol_ident not found", self_);
                 Default::default()
             }
         }
@@ -219,7 +205,7 @@ fn expand_callback_register(ident: &proc_macro2::Ident) -> proc_macro2::TokenStr
 
 // input: _functionNameFromCpp
 // output: function_name_from_cpp
-fn transform_name(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
+fn to_rust_name(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
     let mut name = String::new();
     for c in ident.to_string().chars() {
         if c.is_uppercase() {
