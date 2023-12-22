@@ -62,7 +62,7 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
                 #[derive(Clone)]
                 pub struct #callback_agent_ident {
                     inner: std::sync::Arc<std::sync::Mutex<Box<dyn #callback_protocol_ident>>>,
-                    pub raw_ptr: *mut #name,
+                    raw_ptr: *mut #name,
                 }
 
                 impl #callback_agent_ident {
@@ -78,6 +78,10 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
                         };
                         #getter_ident().insert(key, this.clone());
                         this
+                    }
+
+                    pub fn raw_ptr(&self) -> *mut #name {
+                        self.raw_ptr
                     }
                 }
 
