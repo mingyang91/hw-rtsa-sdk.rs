@@ -32,6 +32,7 @@ where {
   fn host(&self) -> &str;
   fn method(&self) -> &str;
   fn uri(&self) -> &str;
+  fn path(&self) -> &str;
   fn headers(&self) -> Self::Headers;
   fn header(&self, key: &str) -> &str;
   fn set_header(&mut self, key: String, value: String);
@@ -53,9 +54,9 @@ impl <C: Clock> Signer<C> {
   }
 
   pub fn sign<Req: SignableRequest>(&self, req: &mut Req) {
-    let header_time = req.header(HEADER_X_DATE).to_string();
+    let mut header_time = req.header(HEADER_X_DATE).to_string();
     if header_time.is_empty() {
-      let header_time = C::now().to_rfc2822();
+      header_time = C::now().format("%Y%m%dT%H%M%SZ").to_string();
       req.set_header(HEADER_X_DATE.to_string(), header_time.to_string());
     }
 
@@ -84,11 +85,15 @@ impl <C: Clock> Signer<C> {
     req: &mut Req,
     signed_headers: &Vec<(String, String)>,
   ) -> String {
-    let content_sha256 = Self::content_sha256(req.body().as_ref());
-    req.set_header(HEADER_CONTENT_SHA256.to_string(), content_sha256.clone());
+    let content = req.body().as_ref();
+    let content_sha256 = Self::content_sha256(content);
+    let mut path = req.path().to_string();
+    if !path.ends_with('/') {
+      path.push('/');
+    }
     let canonical_request = vec![
       req.method().to_string(),
-      req.uri().to_string(),
+      path,
       req.query().to_string(),
       Self::canonical_headers(signed_headers),
       signed_headers.iter().map(|(key, _)| key.to_lowercase()).collect::<Vec<_>>().join(";"),
@@ -159,6 +164,10 @@ where T: AsRef<[u8]> {
     self.method().as_str()
   }
 
+  fn path(&self) -> &str {
+    self.uri().path()
+  }
+
   fn uri(&self) -> &str {
     self.uri().path_and_query().map(|x| x.as_str()).unwrap_or("")
   }
@@ -213,20 +222,22 @@ mod test {
   struct Matrix {}
   impl Clock for Matrix {
     fn now() -> chrono::DateTime<chrono::Utc> {
-      chrono::DateTime::parse_from_rfc2822("Tue, 07 Jul 2020 08:00:00 +0000").unwrap().into()
+      // 20120101T000000Z
+      chrono::DateTime::parse_from_rfc3339("2012-01-01T00:00:00Z").unwrap().into()
     }
   }
   
   #[test]
   fn function1() {
-    // var r = new signer.HttpRequest("GET", "service.region.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1");
     let mut request = Request::builder()
       .method("GET")
-      .uri("http://service.region.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+      .uri("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+      .header("Host", "endpoint.example.com")
+      .header("Content-Type", "application/json")
       .body(Empty {})
       .expect("request builder error");
 
-    let signer = Signer::<Matrix>::new("ak", "sk");
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
     request.sign_with(&signer);
     println!("{:?}", request);
   }
