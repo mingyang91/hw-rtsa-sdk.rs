@@ -8,9 +8,21 @@ const HEADER_X_DATE: &str = "X-Sdk-Date";
 const HEADER_AUTHORIZATION: &str = "Authorization";
 const HEADER_CONTENT_SHA256: &str = "x-sdk-content-sha256";
 
-pub struct Signer {
+pub trait Clock {
+  fn now() -> chrono::DateTime<chrono::Utc>;
+}
+
+pub struct IO {}
+impl Clock for IO {
+  fn now() -> chrono::DateTime<chrono::Utc> {
+    chrono::Utc::now()
+  }
+}
+
+pub struct Signer<C: Clock> {
   key: String,
   secret: String,
+  _context: std::marker::PhantomData<C>,
 }
 
 pub trait SignableRequest
@@ -25,20 +37,25 @@ where {
   fn set_header(&mut self, key: String, value: String);
   fn query(&self) -> &str;
   fn body(&self) -> &Self::Body;
+  fn sign_with<C: Clock>(&mut self, signer: &Signer<C>) 
+  where Self: Sized {
+    signer.sign(self);
+  }
 }
 
-impl Signer {
+impl <C: Clock> Signer<C> {
   pub fn new(key: &str, secret: &str) -> Self {
     Signer {
       key: key.to_string(),
       secret: secret.to_string(),
+      _context: std::marker::PhantomData,
     }
   }
 
   pub fn sign<Req: SignableRequest>(&self, req: &mut Req) {
     let header_time = req.header(HEADER_X_DATE).to_string();
     if header_time.is_empty() {
-      let header_time = chrono::Utc::now().to_rfc2822();
+      let header_time = C::now().to_rfc2822();
       req.set_header(HEADER_X_DATE.to_string(), header_time.to_string());
     }
 
@@ -183,13 +200,20 @@ where T: AsRef<[u8]> {
 mod test {
   use http::request::Builder;
   use http::request::Request;
-  use crate::signer::Signer;
+  use crate::signer::{Signer, SignableRequest, Clock};
 
   #[derive(Debug)]
   struct Empty {}
   impl AsRef<[u8]> for Empty {
     fn as_ref(&self) -> &[u8] {
       &[]
+    }
+  }
+
+  struct Matrix {}
+  impl Clock for Matrix {
+    fn now() -> chrono::DateTime<chrono::Utc> {
+      chrono::DateTime::parse_from_rfc2822("Tue, 07 Jul 2020 08:00:00 +0000").unwrap().into()
     }
   }
   
@@ -202,8 +226,8 @@ mod test {
       .body(Empty {})
       .expect("request builder error");
 
-    let signer = Signer::new("ak", "sk");
-    signer.sign(&mut request);
+    let signer = Signer::<Matrix>::new("ak", "sk");
+    request.sign_with(&signer);
     println!("{:?}", request);
   }
 }
