@@ -1,19 +1,11 @@
 
-use hw_rtsa_sdk_sys::{createHandler, huawei_rtsa_ProxyHandler_FFIProtocol};
+use hw_rtsa_sdk_sys::huawei_rtsa_ProxyHandler_FFIProtocol;
 
-pub struct HRTSAHandlerInner {
-    handler: *mut huawei_rtsa_ProxyHandler,
-}
+pub struct HRTSAHandlerInner {}
 
 impl HRTSAHandlerInner {
     pub fn new() -> Self {
-        let handler = unsafe {
-            let handler = createHandler();
-            handler
-        };
-        HRTSAHandlerInner {
-            handler,
-        }
+        HRTSAHandlerInner {}
     }
 }
 

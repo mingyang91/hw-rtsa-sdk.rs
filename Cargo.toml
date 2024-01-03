@@ -12,9 +12,17 @@ name = "hw_rtsa_sdk"
 path = "src/lib.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+http = ["dep:http", "hyper/client"]
+
 [dependencies]
 tokio-stream = "0.1.14"
 thiserror = "1.0"
+url = { version = "2.5.0", features = [] }
+sha2 = "0.10.8"
+hmac = "0.12.1"
+hex = "0.4.3"
+chrono = "0.4.19"
 
 [dependencies.tokio]
 version = "1.17.0"
@@ -22,3 +30,10 @@ features = ["full"]
 
 [dependencies.hw-rtsa-sdk-sys]
 path = "hw-rtsa-sdk-sys"
+
+[dependencies.http]
+version = "1.0.0"
+optional = true
+
+[dev-dependencies]
+hyper = { version = "0.14.20" }
