@@ -1,5 +1,5 @@
 use std::mem::transmute;
-use hw_rtsa_sdk_sys::huawei_rtsa_HRTSAJoinParam;
+use hw_rtsa_sdk_sys::bindings::huawei_rtsa_HRTSAJoinParam;
 use thiserror::Error;
 
 use crate::utils::ToFixedBytes;

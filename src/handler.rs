@@ -1,5 +1,5 @@
 
-use hw_rtsa_sdk_sys::huawei_rtsa_ProxyHandler_FFIProtocol;
+use hw_rtsa_sdk_sys::bindings::huawei_rtsa_ProxyHandler_FFIProtocol;
 
 pub struct HRTSAHandlerInner {}
 

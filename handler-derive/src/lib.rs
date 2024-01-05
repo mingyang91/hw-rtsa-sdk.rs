@@ -20,7 +20,7 @@ pub fn handler_derive(input: TokenStream) -> TokenStream {
             let callback_protocol_ident = proc_macro2::Ident::new(&callback_protocol_name, name.span());
             let Definition {
                 body: expand_register_definition,
-                name: register_ident,
+                name: _register_ident,
                 getter: getter_ident
             } = register_definition(&name, &callback_agent_ident);
 

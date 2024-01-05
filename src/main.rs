@@ -4,7 +4,7 @@ use std::time::Duration;
 use hw_rtsa_sdk::engine::HRTSAEngine;
 use hw_rtsa_sdk::handler::{HRTSAHandlerInner};
 use hw_rtsa_sdk::param::HRTSAParam;
-use hw_rtsa_sdk_sys::{huawei_rtsa_ProxyHandler_FFIAgent};
+use hw_rtsa_sdk_sys::bindings::{huawei_rtsa_ProxyHandler_FFIAgent};
 use thiserror::Error;
 use tokio::time::sleep;
 
