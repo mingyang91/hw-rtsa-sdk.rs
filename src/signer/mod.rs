@@ -60,6 +60,10 @@ impl <C: Clock> Signer<C> {
       req.set_header(HEADER_X_DATE.to_string(), header_time.to_string());
     }
 
+    if req.header("Host").is_empty() {
+      req.set_header("Host".to_string(), req.host().to_string());
+    }
+
     let mut signed_headers: Vec<(String, String)> = req.headers()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
@@ -207,6 +211,7 @@ where T: AsRef<[u8]> {
 
 #[cfg(test)]
 mod test {
+  use serde::Serialize;
   use http::request::Builder;
   use http::request::Request;
   use crate::signer::{Signer, SignableRequest, Clock};
@@ -228,17 +233,59 @@ mod test {
   }
   
   #[test]
-  fn function1() {
+  fn sign_get() {
     let mut request = Request::builder()
       .method("GET")
       .uri("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
-      .header("Host", "endpoint.example.com")
       .header("Content-Type", "application/json")
       .body(Empty {})
       .expect("request builder error");
 
     let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
     request.sign_with(&signer);
-    println!("{:?}", request);
+    let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=486fb116518ebda891aa35f99750ab3fc8f1fa22315e3ba619b016a2261503f4";
+    assert_eq!(request.header("Authorization"), authorization);
+  }
+
+  #[derive(Serialize)]
+  struct Info {
+    foo: String,
+    bar: i32,
+    baz: bool,
+  }
+
+  impl AsRef<[u8]> for Info {
+    fn as_ref(&self) -> &[u8] {
+      serde_json::to_string(self).unwrap().as_bytes()
+    }
+  }
+
+  #[test]
+  fn sign_post() {
+    let mut request = Request::builder()
+      .method("POST")
+      .uri("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+      .header("Content-Type", "application/json")
+      .body(Info { foo: "foo".to_string(), bar: 114514, baz: true })
+      .expect("request builder error");
+
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with(&signer);
+    let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=486fb116518ebda891aa35f99750ab3fc8f1fa22315e3ba619b016a2261503f4";
+    assert_eq!(request.header("Authorization"), authorization);
+  }
+
+  #[test]
+  fn real_world() {
+    let mut request = Request::builder()
+      .method("POST")
+      .uri("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+      .header("Content-Type", "application/json")
+      .body(Info { foo: "foo".to_string(), bar: 114514, baz: true })
+      .expect("request builder error");
+
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with(&signer);
+    send(request);
   }
 }
