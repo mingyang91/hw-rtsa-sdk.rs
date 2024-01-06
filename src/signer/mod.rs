@@ -25,10 +25,9 @@ pub struct Signer<C: Clock = Live> {
   _phantom: std::marker::PhantomData<C>,
 }
 
-pub trait SignableRequest 
-where for <'a> Self: 'a {
+pub trait SignableRequest {
   type Headers: Iterator<Item = (String, String)>;
-  type Body<'a>: AsRef<[u8]> + 'a;
+  type Body<'a>: AsRef<[u8]> where Self: 'a;
   fn host(&self) -> &str;
   fn method(&self) -> &str;
   fn path(&self) -> &str;
