@@ -209,7 +209,7 @@ impl SignableRequest for Request {
 mod test {
   use serde::Serialize;
   use reqwest::{Request, RequestBuilder, Body};
-  use crate::signer::{Signer, SignableRequest, Clock};
+  use crate::signer::{Signer, SignableRequest, Clock, Live};
 
   #[derive(Debug)]
   struct Empty {}
@@ -283,7 +283,7 @@ mod test {
       .build()
       .expect("request builder error");
 
-    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    let signer: Signer<Live> = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
     request.sign_with(&signer);
     if let Ok(resp) = client.execute(request).await {
       assert!(resp.status().is_client_error(), "should be denied with 4xx");
