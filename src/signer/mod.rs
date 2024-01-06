@@ -19,41 +19,39 @@ impl Clock for IO {
   }
 }
 
-pub struct Signer<C: Clock> {
+pub struct Signer {
   key: String,
   secret: String,
-  _context: std::marker::PhantomData<C>,
 }
 
-pub trait SignableRequest
-where {
+pub trait SignableRequest 
+where for <'a> Self: 'a {
   type Headers: Iterator<Item = (String, String)>;
-  type Body: AsRef<[u8]>;
+  type Body<'a>: AsRef<[u8]> + 'a;
   fn host(&self) -> &str;
   fn method(&self) -> &str;
-  fn uri(&self) -> &str;
   fn path(&self) -> &str;
   fn headers(&self) -> Self::Headers;
   fn header(&self, key: &str) -> &str;
   fn set_header(&mut self, key: String, value: String);
   fn query(&self) -> &str;
-  fn body(&self) -> &Self::Body;
-  fn sign_with<C: Clock>(&mut self, signer: &Signer<C>) 
+  fn body(&self) -> Option<Self::Body<'_>>;
+  fn sign_with<C: Clock>(&mut self, signer: &Signer) 
   where Self: Sized {
-    signer.sign(self);
+    signer.sign::<C, Self>(self);
   }
 }
 
-impl <C: Clock> Signer<C> {
+impl Signer {
   pub fn new(key: &str, secret: &str) -> Self {
     Signer {
       key: key.to_string(),
       secret: secret.to_string(),
-      _context: std::marker::PhantomData,
     }
   }
 
-  pub fn sign<Req: SignableRequest>(&self, req: &mut Req) {
+  pub fn sign<C: Clock, Req>(&self, req: &mut Req) 
+  where Req: SignableRequest {
     let mut header_time = req.header(HEADER_X_DATE).to_string();
     if header_time.is_empty() {
       header_time = C::now().format("%Y%m%dT%H%M%SZ").to_string();
@@ -84,13 +82,18 @@ impl <C: Clock> Signer<C> {
     canonical_headers.join("")
   }
 
-  fn canonical_request<Req: SignableRequest>(
+  fn canonical_request<Req>(
     &self, 
     req: &mut Req,
     signed_headers: &Vec<(String, String)>,
-  ) -> String {
-    let content = req.body().as_ref();
-    let content_sha256 = Self::content_sha256(content);
+  ) -> String 
+  where Req: SignableRequest {
+    let content_sha256 = 
+      if let Some(has_body) = req.body() {
+        Self::content_sha256(has_body.as_ref())
+      } else {
+        Self::content_sha256(&[])
+      };
     let mut path = req.path().to_string();
     if !path.ends_with('/') {
       path.push('/');
@@ -150,18 +153,13 @@ impl <C: Clock> Signer<C> {
 
 use std::str::FromStr;
 #[cfg(feature = "http")]
-use http::{header::HeaderName, HeaderValue, request::Request};
+use reqwest::{header::HeaderName, header::HeaderValue, Request};
 #[cfg(feature = "http")]
-impl <T> SignableRequest for Request<T>
-where T: AsRef<[u8]> {
+impl SignableRequest for Request {
   type Headers = std::vec::IntoIter<(String, String)>;
-  type Body = T;
+  type Body<'a> = &'a [u8];
   fn host(&self) -> &str {
-    let Some(host) = self.uri().host() else {
-      return "";
-    };
-
-    return host;
+    self.url().host_str().expect("")
   }
 
   fn method(&self) -> &str {
@@ -169,11 +167,7 @@ where T: AsRef<[u8]> {
   }
 
   fn path(&self) -> &str {
-    self.uri().path()
-  }
-
-  fn uri(&self) -> &str {
-    self.uri().path_and_query().map(|x| x.as_str()).unwrap_or("")
+    self.url().path()
   }
 
   fn header(&self, key: &str) -> &str {
@@ -187,7 +181,7 @@ where T: AsRef<[u8]> {
   fn headers(&self) -> Self::Headers {
     self.headers()
       .into_iter()
-      .map(|(key, value)| (key.to_string(), value.to_str().unwrap_or("").to_string()))
+      .map(|(key, value)| (key.to_string(), value.to_str().expect("undecodeable header").to_string()))
       .collect::<Vec<_>>()
       .into_iter()
   }
@@ -201,26 +195,25 @@ where T: AsRef<[u8]> {
   }
 
   fn query(&self) -> &str {
-    self.uri().query().unwrap_or("")
+    self.url().query().unwrap_or("")
   }
 
-  fn body(&self) -> &Self::Body {
-    self.body()
+  fn body(&self) -> Option<Self::Body<'_>> {
+    self.body()?.as_bytes()
   }
 }
 
 #[cfg(test)]
 mod test {
   use serde::Serialize;
-  use http::request::Builder;
-  use http::request::Request;
+  use reqwest::{Request, RequestBuilder, Body};
   use crate::signer::{Signer, SignableRequest, Clock};
 
   #[derive(Debug)]
   struct Empty {}
-  impl AsRef<[u8]> for Empty {
-    fn as_ref(&self) -> &[u8] {
-      &[]
+  impl Into<Body> for Empty {
+    fn into(self) -> Body {
+      vec![].into()
     }
   }
 
@@ -234,17 +227,18 @@ mod test {
   
   #[test]
   fn sign_get() {
-    let mut request = Request::builder()
-      .method("GET")
-      .uri("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+    let client = reqwest::Client::new();
+    let mut request = client.get("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
       .header("Content-Type", "application/json")
       .body(Empty {})
+      .build()
       .expect("request builder error");
 
-    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with(&signer);
+    let signer = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with::<Matrix>(&signer);
     let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=486fb116518ebda891aa35f99750ab3fc8f1fa22315e3ba619b016a2261503f4";
-    assert_eq!(request.header("Authorization"), authorization);
+    let headers = request.headers();
+    assert_eq!(headers.get("Authorization").expect("should have"), authorization);
   }
 
   #[derive(Serialize)]
@@ -254,38 +248,46 @@ mod test {
     baz: bool,
   }
 
-  impl AsRef<[u8]> for Info {
-    fn as_ref(&self) -> &[u8] {
-      serde_json::to_string(self).unwrap().as_bytes()
+  impl Into<Body> for Info {
+    fn into(self) -> Body {
+      serde_json::to_vec(&self).unwrap().into()
     }
   }
 
   #[test]
   fn sign_post() {
-    let mut request = Request::builder()
-      .method("POST")
-      .uri("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+    let client = reqwest::Client::new();
+    let body = Info { foo: "foo".to_string(), bar: 114514, baz: true };
+    println!("{}", serde_json::to_string(&body).unwrap());
+    let mut request = client.post("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
       .header("Content-Type", "application/json")
-      .body(Info { foo: "foo".to_string(), bar: 114514, baz: true })
+      .body(body)
+      .build()
       .expect("request builder error");
 
-    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with(&signer);
-    let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=486fb116518ebda891aa35f99750ab3fc8f1fa22315e3ba619b016a2261503f4";
-    assert_eq!(request.header("Authorization"), authorization);
+    let signer = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with::<Matrix>(&signer);
+    let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=166ee46e44d98ca5b0bd55b6a9b69bce88a9938f73725fe7708d9789e34cceb5";
+    let headers = request.headers();
+    assert_eq!(headers.get("Authorization").expect("should have"), authorization);
   }
 
-  #[test]
-  fn real_world() {
-    let mut request = Request::builder()
-      .method("POST")
-      .uri("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
-      .header("Content-Type", "application/json")
-      .body(Info { foo: "foo".to_string(), bar: 114514, baz: true })
+  #[tokio::test]
+  async fn real_world_should_failed_with_fake_ak_sk() -> Result<(), Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    // GET https://metastudio.cn-east-3.myhuaweicloud.com/v1/6a6a1f8354f64dd9b9a614def7b59d83/digital-assets
+    let mut request = client.get("https://metastudio.cn-east-3.myhuaweicloud.com/v1/6a6a1f8354f64dd9b9a614def7b59d83/digital-assets")
+      .body(Empty {})
+      .build()
       .expect("request builder error");
 
-    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with(&signer);
-    send(request);
+    let signer = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with::<Matrix>(&signer);
+    if let Ok(resp) = client.execute(request).await {
+      assert!(resp.status().is_client_error(), "should be denied with 4xx");
+    } else {
+      assert!(false, "should have response");
+    }
+    Ok(())
   }
 }
