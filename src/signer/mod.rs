@@ -12,16 +12,17 @@ pub trait Clock {
   fn now() -> chrono::DateTime<chrono::Utc>;
 }
 
-pub struct IO {}
-impl Clock for IO {
+pub struct Live {}
+impl Clock for Live {
   fn now() -> chrono::DateTime<chrono::Utc> {
     chrono::Utc::now()
   }
 }
 
-pub struct Signer {
+pub struct Signer<C: Clock = Live> {
   key: String,
   secret: String,
+  _phantom: std::marker::PhantomData<C>,
 }
 
 pub trait SignableRequest 
@@ -36,21 +37,22 @@ where for <'a> Self: 'a {
   fn set_header(&mut self, key: String, value: String);
   fn query(&self) -> &str;
   fn body(&self) -> Option<Self::Body<'_>>;
-  fn sign_with<C: Clock>(&mut self, signer: &Signer) 
+  fn sign_with<C: Clock>(&mut self, signer: &Signer<C>) 
   where Self: Sized {
-    signer.sign::<C, Self>(self);
+    signer.sign(self);
   }
 }
 
-impl Signer {
+impl <C: Clock> Signer<C> {
   pub fn new(key: &str, secret: &str) -> Self {
     Signer {
       key: key.to_string(),
       secret: secret.to_string(),
+      _phantom: std::marker::PhantomData,
     }
   }
 
-  pub fn sign<C: Clock, Req>(&self, req: &mut Req) 
+  pub fn sign<Req>(&self, req: &mut Req) 
   where Req: SignableRequest {
     let mut header_time = req.header(HEADER_X_DATE).to_string();
     if header_time.is_empty() {
@@ -234,8 +236,8 @@ mod test {
       .build()
       .expect("request builder error");
 
-    let signer = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with::<Matrix>(&signer);
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with(&signer);
     let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=486fb116518ebda891aa35f99750ab3fc8f1fa22315e3ba619b016a2261503f4";
     let headers = request.headers();
     assert_eq!(headers.get("Authorization").expect("should have"), authorization);
@@ -265,8 +267,8 @@ mod test {
       .build()
       .expect("request builder error");
 
-    let signer = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with::<Matrix>(&signer);
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with(&signer);
     let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=166ee46e44d98ca5b0bd55b6a9b69bce88a9938f73725fe7708d9789e34cceb5";
     let headers = request.headers();
     assert_eq!(headers.get("Authorization").expect("should have"), authorization);
@@ -281,8 +283,8 @@ mod test {
       .build()
       .expect("request builder error");
 
-    let signer = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with::<Matrix>(&signer);
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    request.sign_with(&signer);
     if let Ok(resp) = client.execute(request).await {
       assert!(resp.status().is_client_error(), "should be denied with 4xx");
     } else {
