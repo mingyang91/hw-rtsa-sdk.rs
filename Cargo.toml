@@ -13,7 +13,7 @@ path = "src/lib.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-http = ["dep:reqwest"]
+reqwest = ["dep:reqwest", "dep:http"]
 
 [dependencies]
 tokio-stream = "0.1.14"
@@ -23,6 +23,10 @@ sha2 = "0.10.8"
 hmac = "0.12.1"
 hex = "0.4.3"
 chrono = "0.4.19"
+serde_json = { version = "1.0.64" }
+serde = { version = "*", features = ["derive"] }
+async-trait = "0.1.77"
+
 
 [dependencies.tokio]
 version = "1.17.0"
@@ -36,6 +40,6 @@ version = "0.11"
 features = ["json"]
 optional = true
 
-[dev-dependencies]
-serde_json = { version = "1.0.64" }
-serde = { version = "*", features = ["derive"] }
+[dependencies.http]
+version = "0.2"
+optional = true

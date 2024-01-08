@@ -154,9 +154,9 @@ impl <C: Clock> Signer<C> {
 }
 
 use std::str::FromStr;
-#[cfg(feature = "http")]
+#[cfg(feature = "reqwest")]
 use reqwest::{header::HeaderName, header::HeaderValue, Request};
-#[cfg(feature = "http")]
+#[cfg(feature = "reqwest")]
 impl SignableRequest for Request {
   type Headers = std::vec::IntoIter<(String, String)>;
   type Body<'a> = &'a [u8];
@@ -205,11 +205,22 @@ impl SignableRequest for Request {
   }
 }
 
+#[repr(transparent)]
+pub struct JsonBody<T: serde::Serialize>(pub T);
+
+#[cfg(feature = "reqwest")]
+impl <T: serde::Serialize> Into<reqwest::Body> for JsonBody<T> {
+  fn into(self) -> reqwest::Body {
+    serde_json::to_vec(&self.0).unwrap().into()
+  }
+}
+
 #[cfg(test)]
 mod test {
   use serde::Serialize;
-  use reqwest::{Request, RequestBuilder, Body};
+  use reqwest::Body;
   use crate::signer::{Signer, SignableRequest, Clock, Live};
+  use crate::signer::JsonBody;
 
   #[derive(Debug)]
   struct Empty {}
@@ -249,12 +260,6 @@ mod test {
     baz: bool,
   }
 
-  impl Into<Body> for Info {
-    fn into(self) -> Body {
-      serde_json::to_vec(&self).unwrap().into()
-    }
-  }
-
   #[test]
   fn sign_post() {
     let client = reqwest::Client::new();
@@ -262,7 +267,7 @@ mod test {
     let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
     let request = client.post("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
       .header("Content-Type", "application/json")
-      .body(body)
+      .body(JsonBody(body))
       .build()
       .expect("request builder error")
       .sign_with(&signer);
