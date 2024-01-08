@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use async_trait::async_trait;
-use crate::manager::context::{Context, Error};
 use thiserror::Error;
+use crate::manager::context::Context;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ListAssetsRequestAssetSourceEnum {
@@ -41,6 +41,18 @@ pub struct ListAssetsRequest {
 	pub language: Option<String>,
 }
 
+impl Default for ListAssetsRequest {
+	fn default() -> Self {
+		ListAssetsRequest {
+			limit: None,
+			offset: None,
+			name: None,
+			tag: None,
+			sex: None,
+			language: None,
+		}
+	}
+}
 
 /**
     * @export
@@ -103,36 +115,43 @@ pub enum DigitalAssetInfoFailTypeEnum {
 // public files?: Array<AssetFileInfo>;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DigitalAssetInfo {
-	pub asset_id: String,
-	pub asset_name: String,
-	pub asset_description: String,
-	pub create_time: String,
-	pub update_time: String,
-	pub asset_type: DigitalAssetInfoAssetTypeEnum,
-	pub asset_state: DigitalAssetInfoAssetStateEnum,
-	pub fail_type: DigitalAssetInfoFailTypeEnum,
-	pub reason: String,
-	pub is_need_generate_cover: bool,
-	pub tags: Vec<String>,
+	pub asset_id: Option<String>,
+	pub asset_name: Option<String>,
+	pub asset_description: Option<String>,
+	pub create_time: Option<String>,
+	pub update_time: Option<String>,
+	pub asset_type: Option<DigitalAssetInfoAssetTypeEnum>,
+	pub asset_state: Option<DigitalAssetInfoAssetStateEnum>,
+	pub fail_type: Option<DigitalAssetInfoFailTypeEnum>,
+	pub reason: Option<String>,
+	pub is_need_generate_cover: Option<bool>,
+	pub tags: Option<Vec<String>>,
 	// pub asset_extra_meta: AssetExtraMeta,
 	// pub system_properties: Vec<SystemProperty>,
 	// pub files: Vec<AssetFileInfo>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DigitalAssetsList {
+	pub assets: Vec<DigitalAssetInfo>,
+	pub count: u32,
+}
+
 #[async_trait]
-trait AssetsManager {
-	async fn list_assets(&self, req: ListAssetsRequest) -> Result<Vec<DigitalAssetInfo>, Error<ListAssetsError>>;
+pub trait AssetsManager<C: Context> {
+	async fn list_assets(&self, req: ListAssetsRequest) -> Result<DigitalAssetsList, C::Error<ListAssetsError>>;
 }
 
 #[derive(Debug, Serialize, Deserialize, Error)]
-enum ListAssetsError {
-
+pub enum ListAssetsError {
+	#[error("invalid parameter")]
+	InvalidParameter { error_code: String, error_msg: String },
 }
 
 
 #[async_trait]
-impl <C: Context> AssetsManager for C {
-	async fn list_assets(&self, req: ListAssetsRequest) -> Result<Vec<DigitalAssetInfo>, Error<ListAssetsError>> {
-		todo!()
+impl <C: Context> AssetsManager<C> for C {
+	async fn list_assets(&self, req: ListAssetsRequest) -> Result<DigitalAssetsList, C::Error<ListAssetsError>> {
+		self.execute("GET", "/v1/f913be1782174fccbb2dfa6bf61dac2c/digital-assets", req).await
 	}
 }
