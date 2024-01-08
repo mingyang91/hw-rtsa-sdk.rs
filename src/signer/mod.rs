@@ -36,9 +36,10 @@ pub trait SignableRequest {
   fn set_header(&mut self, key: String, value: String);
   fn query(&self) -> &str;
   fn body(&self) -> Option<Self::Body<'_>>;
-  fn sign_with<C: Clock>(&mut self, signer: &Signer<C>) 
+  fn sign_with<C: Clock>(mut self, signer: &Signer<C>) -> Self
   where Self: Sized {
-    signer.sign(self);
+    signer.sign(&mut self);
+    self
   }
 }
 
@@ -229,14 +230,13 @@ mod test {
   #[test]
   fn sign_get() {
     let client = reqwest::Client::new();
-    let mut request = client.get("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    let request = client.get("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
       .header("Content-Type", "application/json")
       .body(Empty {})
       .build()
-      .expect("request builder error");
-
-    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with(&signer);
+      .expect("request builder error")
+      .sign_with(&signer);
     let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=486fb116518ebda891aa35f99750ab3fc8f1fa22315e3ba619b016a2261503f4";
     let headers = request.headers();
     assert_eq!(headers.get("Authorization").expect("should have"), authorization);
@@ -259,15 +259,14 @@ mod test {
   fn sign_post() {
     let client = reqwest::Client::new();
     let body = Info { foo: "foo".to_string(), bar: 114514, baz: true };
-    println!("{}", serde_json::to_string(&body).unwrap());
-    let mut request = client.post("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
+    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+    let request = client.post("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
       .header("Content-Type", "application/json")
       .body(body)
       .build()
-      .expect("request builder error");
+      .expect("request builder error")
+      .sign_with(&signer);
 
-    let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with(&signer);
     let authorization = "SDK-HMAC-SHA256 Access=QTWAOYTTINDUT2QVKYUC, SignedHeaders=content-type;host;x-sdk-date, Signature=166ee46e44d98ca5b0bd55b6a9b69bce88a9938f73725fe7708d9789e34cceb5";
     let headers = request.headers();
     assert_eq!(headers.get("Authorization").expect("should have"), authorization);
@@ -277,13 +276,14 @@ mod test {
   async fn real_world_should_failed_with_fake_ak_sk() -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     // GET https://metastudio.cn-east-3.myhuaweicloud.com/v1/6a6a1f8354f64dd9b9a614def7b59d83/digital-assets
-    let mut request = client.get("https://metastudio.cn-east-3.myhuaweicloud.com/v1/6a6a1f8354f64dd9b9a614def7b59d83/digital-assets")
+    let signer: Signer<Live> = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
+
+    let request = client.get("https://metastudio.cn-east-3.myhuaweicloud.com/v1/6a6a1f8354f64dd9b9a614def7b59d83/digital-assets")
       .body(Empty {})
       .build()
-      .expect("request builder error");
+      .expect("request builder error")
+      .sign_with(&signer);
 
-    let signer: Signer<Live> = Signer::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
-    request.sign_with(&signer);
     if let Ok(resp) = client.execute(request).await {
       assert!(resp.status().is_client_error(), "should be denied with 4xx");
     } else {
