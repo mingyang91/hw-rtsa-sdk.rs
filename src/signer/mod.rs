@@ -205,22 +205,11 @@ impl SignableRequest for Request {
   }
 }
 
-#[repr(transparent)]
-pub struct JsonBody<T: serde::Serialize>(pub T);
-
-#[cfg(feature = "reqwest")]
-impl <T: serde::Serialize> Into<reqwest::Body> for JsonBody<T> {
-  fn into(self) -> reqwest::Body {
-    serde_json::to_vec(&self.0).unwrap().into()
-  }
-}
-
 #[cfg(test)]
 mod test {
   use serde::Serialize;
   use reqwest::Body;
   use crate::signer::{Signer, SignableRequest, Clock, Live};
-  use crate::signer::JsonBody;
 
   #[derive(Debug)]
   struct Empty {}
@@ -267,7 +256,7 @@ mod test {
     let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
     let request = client.post("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
       .header("Content-Type", "application/json")
-      .body(JsonBody(body))
+      .body(serde_json::to_vec(&body).unwrap())
       .build()
       .expect("request builder error")
       .sign_with(&signer);

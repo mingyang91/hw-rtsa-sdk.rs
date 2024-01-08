@@ -7,17 +7,17 @@ use std::sync::Arc;
 use std::str::FromStr;
 use reqwest::Method;
 use crate::manager::context::{Context, Profile};
-use crate::signer::{SignableRequest, Signer, JsonBody};
+use crate::signer::{SignableRequest, Signer};
 
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error<T>
 where T: Debug + StdError + Serialize + Send + Sync,
       T: DeserializeOwned {
-	#[cfg(feature = "reqwest")]
 	#[error("reqwest error")]
 	Reqwest(reqwest::Error),
-	#[cfg(feature = "reqwest")]
+	#[error("codec error")]
+	Codec(#[source] serde_json::Error),
 	#[error("method error")]
 	InvalidMethod(#[source] http::method::InvalidMethod),
 	#[error("domain error")]
@@ -64,9 +64,10 @@ impl Context for Live {
 		// https://metastudio.cn-north-4.myhuaweicloud.com/v1/70b76xxxxxx34253880af501cdxxxxxx/smart-live-rooms
 		let method = Method::from_str(method).map_err(Error::InvalidMethod)?;
 		let url = format!("https://metastudio.{}.myhuaweicloud.com{}", self.inner.profile.region, path);
+		let body = serde_json::to_vec(&req).map_err(Error::Codec)?;
 		let req = self.inner.client.request(method, &url)
 			.header("Content-Type", "application/json")
-			.body(JsonBody(req))
+			.body(body)
 			.build()
 			.map_err(Error::Reqwest)?
 			.sign_with(&self.inner.signer);
