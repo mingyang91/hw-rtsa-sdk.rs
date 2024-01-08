@@ -1,3 +1,5 @@
+#[cfg(feature = "reqwest")]
+pub mod reqwest_signable;
 use hmac::{Hmac, Mac};
 use sha2::{Sha256, Digest};
 use hex;
@@ -153,63 +155,12 @@ impl <C: Clock> Signer<C> {
   }
 }
 
-use std::str::FromStr;
-#[cfg(feature = "reqwest")]
-use reqwest::{header::HeaderName, header::HeaderValue, Request};
-#[cfg(feature = "reqwest")]
-impl SignableRequest for Request {
-  type Headers = std::vec::IntoIter<(String, String)>;
-  type Body<'a> = &'a [u8];
-  fn host(&self) -> &str {
-    self.url().host_str().expect("")
-  }
 
-  fn method(&self) -> &str {
-    self.method().as_str()
-  }
-
-  fn path(&self) -> &str {
-    self.url().path()
-  }
-
-  fn header(&self, key: &str) -> &str {
-    let Some(value) = self.headers().get(key) else {
-      return "";
-    };
-
-    value.to_str().unwrap_or("")
-  }
-
-  fn headers(&self) -> Self::Headers {
-    self.headers()
-      .into_iter()
-      .map(|(key, value)| (key.to_string(), value.to_str().expect("undecodeable header").to_string()))
-      .collect::<Vec<_>>()
-      .into_iter()
-  }
-
-  fn set_header(&mut self, key: String, value: String) {
-    self.headers_mut()
-      .insert(
-        HeaderName::from_str(&key).expect("set header error"),
-        HeaderValue::from_str(&value).expect("set header error")
-      );
-  }
-
-  fn query(&self) -> &str {
-    self.url().query().unwrap_or("")
-  }
-
-  fn body(&self) -> Option<Self::Body<'_>> {
-    self.body()?.as_bytes()
-  }
-}
-
-#[cfg(test)]
+#[cfg(all(test, feature = "reqwest"))]
 mod test {
   use serde::Serialize;
   use reqwest::Body;
-  use crate::signer::{Signer, SignableRequest, Clock, Live};
+  use crate::signer::{Signer, SignableRequest, Clock, Live, reqwest_signable::*};
 
   #[derive(Debug)]
   struct Empty {}
@@ -256,7 +207,7 @@ mod test {
     let signer = Signer::<Matrix>::new("QTWAOYTTINDUT2QVKYUC", "MFyfvK41ba2giqM7**********KGpownRZlmVmHc");
     let request = client.post("http://endpoint.example.com/v1/77b6a44cba5143ab91d13ab9a8ff44fd/vpcs?limie=1")
       .header("Content-Type", "application/json")
-      .body(serde_json::to_vec(&body).unwrap())
+      .body::<Vec<u8>>(serde_json::to_vec(&body).unwrap().into())
       .build()
       .expect("request builder error")
       .sign_with(&signer);
