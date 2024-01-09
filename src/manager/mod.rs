@@ -4,3 +4,4 @@ pub mod assets;
 #[cfg(feature = "reqwest")]
 pub mod reqwest_context;
 mod test;
+mod cslr;

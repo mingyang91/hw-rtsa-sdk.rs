@@ -1,0 +1,27 @@
+[package]
+name = "hw-cloud-schema"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "hw_cloud_schema"
+path = "src/lib.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+#ApiHub  CDN与智能边缘  IoT物联网 专属云  人工智能  企业应用  企业网络  区块链  大数据  存储  安全与合规  容器  工业软件  应用中间件  开发者工具  开天aPaaS  支持与服务  数据库  管理与监管  网络  视频  计算  软件开发生产线  迁移  运营
+ApiHub = []
+"存储" = []
+
+[dependencies]
+typify = { version = "*" }
+serde = { version = "*", features = ["derive"] }
+
+
+[build-dependencies]
+reqwest = { version = "*", features = ["json"] }
+tokio = { version = "*", features = ["full"] }
+serde = { version = "*", features = ["derive"] }
+serde_json = { version = "*" }
+futures = { version = "*" }
