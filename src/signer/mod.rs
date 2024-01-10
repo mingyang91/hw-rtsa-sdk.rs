@@ -8,6 +8,7 @@ use chrono;
 const ALGORITHM: &str = "SDK-HMAC-SHA256";
 const HEADER_X_DATE: &str = "X-Sdk-Date";
 const HEADER_AUTHORIZATION: &str = "Authorization";
+#[allow(dead_code)]
 const HEADER_CONTENT_SHA256: &str = "x-sdk-content-sha256";
 
 pub trait Clock {

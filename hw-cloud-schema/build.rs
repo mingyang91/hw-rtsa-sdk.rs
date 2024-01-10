@@ -12,6 +12,7 @@ use futures_util::{StreamExt, FutureExt};
 async fn main() -> Result<(), reqwest::Error> {
 	let region_id = env::var("REGION_ID").unwrap_or("cn-north-4".to_string());
 	let whitelist = enabled_features();
+	println!("whitelist: {:?}", whitelist);
 	let client = Client::new();
 	let list_products_resp = list_products(&client).await?;
 	let out_dir = env::var("OUT_DIR").unwrap();
@@ -36,7 +37,7 @@ async fn main() -> Result<(), reqwest::Error> {
 				.iter()
 				.filter(|api_basic_info| {
 					let api_name = &api_basic_info.name;
-					whitelist.contains(api_name)
+					whitelist.contains(&api_name.to_uppercase())
 				})
 				.collect::<Vec<&ApiBasicInfo>>();
 			if enabled.len() == 0 {
