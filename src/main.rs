@@ -7,7 +7,7 @@ use hw_rtsa_sdk::param::HRTSAParam;
 use hw_rtsa_sdk_sys::bindings::{huawei_rtsa_ProxyHandler_FFIAgent};
 use thiserror::Error;
 use tokio::time::sleep;
-use hw_cloud_schema::存储::OBS::Error;
+use hw_cloud_schema::OBS::AbortMultipartUpload::Error as OBSAbortMultipartUploadError;
 
 #[derive(Error, Debug)]
 enum Error {

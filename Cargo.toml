@@ -13,7 +13,7 @@ path = "src/lib.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-reqwest = ["dep:reqwest", "dep:http"]
+reqwest = ["dep:reqwest"]
 
 [dependencies]
 tokio-stream = "0.1.14"
@@ -37,13 +37,9 @@ path = "hw-rtsa-sdk-sys"
 
 [dependencies.hw-cloud-schema]
 path = "hw-cloud-schema"
-features = ["存储"]
+features = ["OBS"]
 
 [dependencies.reqwest]
 version = "0.11"
 features = ["json"]
-optional = true
-
-[dependencies.http]
-version = "0.2"
 optional = true
