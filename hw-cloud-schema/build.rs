@@ -1,14 +1,17 @@
 use std::path::Path;
 use std::env;
+use std::collections::HashSet;
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
-use tokio::fs::{File, create_dir_all};
+use tokio::fs::create_dir_all;
 use tokio::io::AsyncWriteExt;
+use futures_util::{StreamExt, FutureExt};
 
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
 	let region_id = env::var("REGION_ID").unwrap_or("cn-north-4".to_string());
+	let whitelist = enabled_features();
 	let client = Client::new();
 	let list_products_resp = list_products(&client).await?;
 	let out_dir = env::var("OUT_DIR").unwrap();
@@ -16,67 +19,86 @@ async fn main() -> Result<(), reqwest::Error> {
 	create_dir_all(&gen_dir).await.expect("create dir");
 	
 	let mut product_names = Vec::new();
-  for group in list_products_resp.groups {
-			for product in group.products.iter() {
-				let productshort = &product.productshort;
-					let list_apis_resp = list_apis(&client, productshort).await;
-					let list_apis_resp = match list_apis_resp {
-						Ok(list_apis_resp) => list_apis_resp,
-						Err(e) => {
-							println!("Skip {} because of error {}", productshort, e);
-							continue;
+  for group in list_products_resp.groups.iter() {
+		for product in group.products.iter() {
+			let productshort = &product.productshort;
+			let normalize_productshort = normalize_identifier(productshort);
+			let list_apis_resp = list_apis(&client, productshort).await;
+			let list_apis_resp = match list_apis_resp {
+				Ok(list_apis_resp) => list_apis_resp,
+				Err(e) => {
+					println!("Skip {} because of error {}", productshort, e);
+					continue;
+				}
+			};
+			let enabled = list_apis_resp
+				.api_basic_infos
+				.iter()
+				.filter(|api_basic_info| {
+					let api_name = &api_basic_info.name;
+					whitelist.contains(api_name)
+				})
+				.collect::<Vec<&ApiBasicInfo>>();
+			if enabled.len() == 0 {
+				println!("Skip {} because of no apis", productshort);
+				continue;
+			}
+
+			product_names.push(normalize_productshort.clone());
+
+			let api_stream = tokio_stream::iter(enabled);
+			let api_names = api_stream
+				.flat_map_unordered(1, |api_basic_info| {
+					let productshort = productshort.clone();
+					let normalize_productshort = normalize_productshort.clone();
+					let client = client.clone();
+					let region_id = region_id.clone();
+					let fut = async move {
+						let api_detail_resp = get_api_detail(&client, &productshort, &api_basic_info.name, &region_id).await;
+						match api_detail_resp {
+							Ok(api_detail) => {
+								let path = format!("{}/{}/{}.json", gen_dir.display(), normalize_productshort, api_basic_info.name);
+								let url = api_detail_url(&productshort, &api_basic_info.name, &region_id);
+								typify_gen_definition(path, &api_basic_info.name, &url, api_detail.to_string().as_bytes()).await;
+								Some(api_basic_info.name.clone())
+							},
+							Err(e) => {
+								println!("Skip {}-{} because of error {}", productshort, api_basic_info.name, e);
+								None
+							}
 						}
 					};
-
-					if list_apis_resp.count == 0 {
-						println!("Skip {} because of no apis", productshort);
-						continue;
-					}
-
-					product_names.push(productshort.clone());
-
-					let tasks = list_apis_resp.api_basic_infos
-						.iter()
-						.map(|api_basic_info| {
-							let gen_dir = gen_dir.clone();
-							let productshort = productshort.clone();
-							let client = client.clone();
-							let region_id = region_id.clone();
-							async move {
-								let api_detail_resp = get_api_detail(&client, &productshort, &api_basic_info.name, &region_id).await;
-								match api_detail_resp {
-									Ok(api_detail) => {
-										let path = format!("{}/{}/{}.json", gen_dir.display(), productshort, api_basic_info.name);
-										let url = api_detail_url(&productshort, &api_basic_info.name, &region_id);
-										typify_gen_definition(path, &api_basic_info.name, &url, api_detail.to_string().as_bytes()).await;
-										Some(api_basic_info.name.clone())
-									},
-									Err(e) => {
-										println!("Skip {}-{} because of error {}", productshort, api_basic_info.name, e);
-										None
-									}
-								}
-							}
-						});
-					let api_names = futures::future::join_all(tasks).await.into_iter().filter_map(|x| x).collect::<Vec<String>>();
-					write_file(format!("{}/{}/mod.rs", gen_dir.display(), productshort), mod_gen(&api_names).as_bytes()).await;
-					break;
-			}
+					let fut = Box::pin(fut);
+					fut.into_stream()
+				})
+				.filter_map(|x| async { x })
+				.collect::<Vec<String>>()
+				.await;
+			write_file(format!("{}/{}/mod.rs", gen_dir.display(), normalize_productshort), feature_mod_gen(&api_names).as_bytes()).await;
+		}
 	}
 
-	write_file(format!("{}/mod.rs", &gen_dir.display()), feature_mod_gen(&product_names).as_bytes()).await;
+	write_file(format!("{}/mod.rs", &gen_dir.display()), mod_gen(&product_names).as_bytes()).await;
 
 	println!("cargo:rustc-env=GENERATED_ENV={}", gen_dir.display());
 
 	Ok(())
 }
 
+fn enabled_features() -> HashSet<String> {
+	let features = env::vars()
+		.filter(|(key, _value)| key.starts_with("CARGO_FEATURE_"))
+		.filter(|(_key, value)| value == "1")
+		.map(|(key, _value)| key[14..].to_string())
+		.collect::<HashSet<String>>();
+	features
+}
+
 async fn write_file<P: AsRef<Path>>(path: P, content: &[u8]) {
 	let parent = path.as_ref().parent().expect("parent");
 	create_dir_all(parent).await.expect("create dir");
 	let mut file = match tokio::fs::OpenOptions::new().write(true).truncate(true).open(path.as_ref()).await {
-		Err(e) => {
-			println!("file may not exist, try to create it: {}", e);
+		Err(_e) => {
 			tokio::fs::File::create(path.as_ref()).await.expect("create file")
 		},
 		Ok(file) => file,
@@ -102,11 +124,22 @@ fn companie_rs_gen<P: AsRef<Path>>(schema: P, reference: &str) -> String {
 	format!(r#"
 		// This file is generated by hw-cloud-schema/build.rs
 		// Definition: {}
+		#![allow(dead_code)]
+		#![allow(unused_imports)]
+		#![allow(non_snake_case)]
 		use std::fmt::Debug;
 		use serde::{{Serialize, Deserialize}};
 		use typify::import_types;
 		import_types!("{}");
 	"#, reference, schema.as_ref().display())
+}
+
+fn mod_gen(name_list: &[String]) -> String {
+	let mut mod_gen = String::new();
+	for name in name_list {
+		mod_gen.push_str(&format!("pub mod {};\n", name));
+	}
+	mod_gen
 }
 
 fn feature_mod_gen(name_list: &[String]) -> String {
@@ -116,14 +149,6 @@ fn feature_mod_gen(name_list: &[String]) -> String {
 		mod_gen.push_str(&format!("#[cfg(feature = \"{}\")]\n", name));
 		mod_gen.push_str(&format!("pub mod {};\n", name));
 		println!("cargo:rustc-cfg={}", name);
-	}
-	mod_gen
-}
-
-fn mod_gen(name_list: &[String]) -> String {
-	let mut mod_gen = String::new();
-	for name in name_list {
-		mod_gen.push_str(&format!("pub mod {};\n", name));
 	}
 	mod_gen
 }
@@ -142,14 +167,14 @@ struct Group {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Product {
-	api_count: u32,
-	attributive_product: String,
-	description: String,
-	has_data: bool,
-	icon: String,
-	is_global: bool,
-	is_recommend: bool,
-	link: String,
+	// api_count: u32,
+	// attributive_product: String,
+	// description: String,
+	// has_data: bool,
+	// icon: String,
+	// is_global: bool,
+	// is_recommend: bool,
+	// link: String,
 	name: String,
 	productshort: String,
 }
@@ -173,38 +198,86 @@ struct ListApisResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ApiBasicInfo {
-	alias_name: String,
+	alias_name: Option<String>,
 	id: String,
-	info_version: String,
+	info_version: Option<String>,
 	method: String,
 	name: String,
 	product_short: String,
-	summary: String,
-	tags: String,
+	summary: Option<String>,
+	tags: Option<String>,
 }
 
 // https://console.huaweicloud.com/apiexplorer/new/v3/apis?offset=0&limit=100&product_short=MetaStudio
 async fn list_apis(client: &Client, product_short: &str) -> Result<ListApisResponse, reqwest::Error> {
-	let url = format!("https://console.huaweicloud.com/apiexplorer/new/v3/apis?offset=0&limit=100&product_short={}", product_short);
-	let apis = client.get(url)
-		.send()
-		.await?
-		.json::<ListApisResponse>()
-		.await?;
+	for round in 0..10 {
+		let url = format!("https://console.huaweicloud.com/apiexplorer/new/v3/apis?offset=0&limit=100&product_short={}", product_short);
+		let apis = client.get(url)
+			.send()
+			.await?
+			.json::<Value>()
+			.await?;
 
-	Ok(apis)
+		if let Ok(err) = serde_json::from_value::<ErrorResponse>(apis.clone()) {
+			if err.error_code == "APIGW.0308" {
+				println!("APIGW.0308, sleep 1s and retry");
+				tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+				continue;
+			}
+			println!("failed {} x {} because of error {}", product_short, round, err.error_msg);
+			continue;
+		}
+
+		return serde_json::from_value::<ListApisResponse>(apis)
+			.or_else(|e| {
+				println!("failed {} x {} because of error {}", product_short, round, e);
+				Ok(ListApisResponse {
+					count: 0,
+					api_basic_infos: Vec::new(),
+				})
+			});
+	}
+
+	panic!("retry too many times");
 }
+
+fn normalize_identifier(name: &str) -> String {
+	let mut name = name.to_string();
+	name = name.replace("-", "_").replace(" ", "_");
+	name
+}
+
+// {"error_msg":"The throttling threshold has been reached: policy ip over ratelimit,limit:5,time:5 second","error_code":"APIGW.0308","request_id":"c50619de20b0e70590f57a99dbed044f"}
+// {"error_code":"APIEXPLORER.1055","error_msg":"api信息为空"}
+#[derive(Debug, Serialize, Deserialize)]
+struct ErrorResponse {
+	error_msg: String,
+	error_code: String,
+}
+
 
 // https://console.huaweicloud.com/apiexplorer/new/v4/apis/detail?product_short=MetaStudio&name=CreateSmartLiveRoom&region_id=cn-north-4
 async fn get_api_detail(client: &Client, product_short: &str, api_name: &str, region_id: &str) -> Result<Value, reqwest::Error> {
-	let url = api_detail_url(product_short, api_name, region_id);
-	let api_detail = client.get(url)
-		.send()
-		.await?
-		.json::<Value>()
-		.await?;
+	for round in 0..10 {
+		let url = api_detail_url(product_short, api_name, region_id);
+		let api_detail = client.get(url)
+			.send()
+			.await?
+			.json::<Value>()
+			.await?;
 
-	Ok(api_detail)
+		if let Ok(err) = serde_json::from_value::<ErrorResponse>(api_detail.clone()) {
+			if err.error_code == "APIGW.0308" {
+				println!("failed {}-{} x {} APIGW.0308, sleep 1s and retry", product_short, api_name, round);
+				tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+				continue;
+			}
+			return Ok(serde_json::json!("{}"));
+		}
+
+		return Ok(api_detail)
+	}
+	panic!("retry too many times");
 }
 
 fn api_detail_url(product_short: &str, api_name: &str, region_id: &str) -> String {

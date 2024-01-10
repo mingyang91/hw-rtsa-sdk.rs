@@ -3,7 +3,6 @@ use serde::de::DeserializeOwned;
 use async_trait::async_trait;
 use std::fmt::Debug;
 use std::error::Error as StdError;
-use crate::signer::Signer;
 
 pub struct Profile {
 	pub access_key_id: String,
