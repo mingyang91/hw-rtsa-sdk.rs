@@ -131,7 +131,7 @@ fn companie_rs_gen<P: AsRef<Path>>(schema: P, reference: &str) -> String {
 		use std::fmt::Debug;
 		use serde::{{Serialize, Deserialize}};
 		use typify::import_types;
-		import_types!("{}");
+		import_types!(schema="{}", struct_builder = true);
 	"#, reference, schema.as_ref().display())
 }
 

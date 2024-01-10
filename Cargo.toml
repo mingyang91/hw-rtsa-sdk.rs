@@ -13,7 +13,7 @@ path = "src/lib.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-reqwest = ["dep:reqwest"]
+reqwest = ["dep:reqwest", "dep:http"]
 
 [dependencies]
 tokio-stream = "0.1.14"
@@ -42,4 +42,8 @@ features = ["Cancel2DDigitalHumanVideo","CancelPhotoDigitalHumanVideo","CheckTex
 [dependencies.reqwest]
 version = "0.11"
 features = ["json"]
+optional = true
+
+[dependencies.http]
+version = "0.2"
 optional = true
