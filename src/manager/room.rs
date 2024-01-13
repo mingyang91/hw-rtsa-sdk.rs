@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use async_trait::async_trait;
 use crate::manager::context::Context;
-use hw_cloud_schema::MetaStudio::CreateSmartLiveRoom::{CreateSmartLiveRoomRsp, CreateSmartLiveRoomReq};
+use huawei_cloud_api_definitions_MetaStudio::CreateSmartLiveRoom::{CreateSmartLiveRoomRsp, CreateSmartLiveRoomReq};
 
 #[derive(Debug, Serialize, Deserialize, thiserror::Error)]
 pub enum Error {
