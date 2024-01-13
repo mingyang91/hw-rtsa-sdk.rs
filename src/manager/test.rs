@@ -1,6 +1,6 @@
 #[cfg(all(test, feature = "reqwest"))]
 mod test {
-	use hw_cloud_schema::MetaStudio::CreateSmartLiveRoom::{CreateSmartLiveRoomRsp, CreateSmartLiveRoomReq};
+	use huawei_cloud_api_definitions_MetaStudio::CreateSmartLiveRoom::{CreateSmartLiveRoomRsp, CreateSmartLiveRoomReq};
 	use crate::manager::context::{Context, Profile};
 	use crate::manager::reqwest_context::Live;
 	use crate::manager::assets::{ListAssetsRequest, AssetsManager};
