@@ -507,9 +507,9 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "huawei-cloud-api-definitions-MetaStudio"
-version = "0.1.1"
+version = "0.1.20240206"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97e998342697189614f7e2bc2b34c63d7f1f33e32378060c803dfa50bae88901"
+checksum = "fd152f813e28e5bfb2dd39217adbc46810a003164fc753045a2831613eba9e9c"
 dependencies = [
  "chrono",
  "regress",
